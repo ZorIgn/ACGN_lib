@@ -1,0 +1,24 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}书架已有主人{% endblock %}
+
+{% block content %}
+<div class="auth-layout">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-brand-mark" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+      </div>
+      <h1 class="auth-title">书架已有主人</h1>
+      <p class="auth-subtitle">当前书架已初始化专属主人账号，请直接登录。</p>
+    </div>
+
+    <div class="auth-closed-action">
+      <a class="btn-action-primary auth-submit-btn" href="{% url 'account_login' %}">前往登录</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

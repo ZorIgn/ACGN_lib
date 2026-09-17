@@ -1,0 +1,98 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}{{ record.item.title }}{% endblock %}
+
+{% block content %}
+<div class="detail-page">
+  <div class="detail-nav-bar">
+    <a class="btn-breadcrumb-back" href="{% url 'library' %}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      <span>返回书架</span>
+    </a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <span class="nav-current-kind">{{ kind_label }}</span>
+  </div>
+
+  <div class="detail-layout">
+    <aside class="detail-media-aside">
+      <div class="cover detail-cover" data-title="{{ record.item.title }}">
+        <img src="{{ record.item.image }}" alt="{{ record.item.title }} 封面" loading="lazy">
+      </div>
+
+      <div class="detail-tags-stack">
+        <div class="meta-tag-row">
+          <span class="tag-label">类型</span>
+          <span class="tag-val">{{ kind_label }}</span>
+        </div>
+        <div class="meta-tag-row">
+          <span class="tag-label">状态</span>
+          <span class="tag-val status-badge status-{{ record.status|slugify }}">{% for val, label in form.status.field.choices %}{% if val == record.status %}{{ label }}{% endif %}{% endfor %}</span>
+        </div>
+        {% if record.score != None %}
+        <div class="meta-tag-row">
+          <span class="tag-label">我的评分</span>
+          <span class="tag-val score-val">{{ record.score|floatformat:"-1" }} <small>/ 10</small></span>
+        </div>
+        {% endif %}
+        {% if kind == 'game' and record.progress %}
+        <div class="meta-tag-row">
+          <span class="tag-label">游玩时长</span>
+          <span class="tag-val playtime-val">{{ playtime_hours|floatformat:1 }} 小时</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="detail-external-links">
+        {% if viewing_link %}
+        <a href="{{ viewing_link }}" target="_blank" rel="noreferrer" class="btn-external-action">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          <span>打开观看 / 阅读链接 ↗</span>
+        </a>
+        {% endif %}
+        {% if metadata.source_url %}
+        <a href="{{ metadata.source_url }}" target="_blank" rel="noreferrer" class="btn-external-subtle">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          <span>查看条目资料 ↗</span>
+        </a>
+        {% endif %}
+      </div>
+    </aside>
+
+    <div class="detail-workspace-pane">
+      <div class="detail-header-block">
+        <h1 class="detail-item-title">{{ record.item.title }}</h1>
+        {% if metadata.original_title and metadata.original_title != record.item.title %}
+        <p class="detail-item-original">{{ metadata.original_title }}</p>
+        {% endif %}
+      </div>
+
+      {% if metadata.synopsis and record.item.source != 'manual' %}
+      <div class="detail-synopsis-card">
+        <div class="synopsis-header">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span>剧情简介</span>
+        </div>
+        <div class="synopsis-body">{{ metadata.synopsis|linebreaksbr }}</div>
+      </div>
+      {% endif %}
+
+      <div class="detail-editor-card">
+        <div class="editor-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          <span>个人记录与评价</span>
+        </div>
+        <form class="detail-form" method="post">
+          {% csrf_token %}
+          <div class="form-grid-fields">
+            {{ form.as_p }}
+          </div>
+          <div class="editor-footer">
+            <p class="form-hint-note">评分为 0–10 分，留空表示未评分。</p>
+            <button type="submit" class="btn-action-primary">保存记录</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

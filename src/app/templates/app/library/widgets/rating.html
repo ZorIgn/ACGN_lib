@@ -1,0 +1,28 @@
+<span class="star-rating-widget" data-rating-widget id="rating-widget-{{ widget.attrs.id }}">
+  <input type="hidden" name="{{ widget.name }}"{% if widget.value != None %} value="{{ widget.value|stringformat:'s' }}"{% endif %}{% include "django/forms/widgets/attrs.html" %}>
+  <span class="rating-stars-row" role="group" aria-label="评分星级">
+    {% for pair in star_scores %}
+    <span class="star-unit" data-star-index="{{ forloop.counter }}" data-half="{{ pair.half }}" data-whole="{{ pair.whole }}">
+      <span class="star-icon-wrap" aria-hidden="true">
+        <svg class="star-icon star-icon-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </svg>
+        <span class="star-fill-clip">
+          <svg class="star-icon star-icon-fill" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </span>
+      </span>
+      <button type="button" class="star-click-btn star-click-half" data-score="{{ pair.half }}" aria-label="{{ pair.half }} 分" title="{{ pair.half }} 分"></button>
+      <button type="button" class="star-click-btn star-click-full" data-score="{{ pair.whole }}" aria-label="{{ pair.whole }} 分" title="{{ pair.whole }} 分"></button>
+    </span>
+    {% endfor %}
+  </span>
+  <span class="rating-value-badge" aria-live="polite">
+    <span class="rating-val-text">{% if widget.value != None and widget.value != '' %}{{ widget.value }}{% else %}未评分{% endif %}</span><span class="rating-val-max"{% if widget.value == None or widget.value == '' %} style="display: none;"{% endif %}> / 10</span>
+  </span>
+  <span class="rating-actions-group">
+    <button type="button" class="rating-quick-btn rating-btn-zero" data-action="zero" title="设为 0 分">0 分</button>
+    <button type="button" class="rating-quick-btn rating-btn-clear" data-action="clear" title="清空评分">清空</button>
+  </span>
+</span>

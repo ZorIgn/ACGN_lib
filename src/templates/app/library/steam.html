@@ -1,0 +1,88 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}Steam 同步{% endblock %}
+
+{% block content %}
+<div class="steam-page">
+  <div class="workspace-header">
+    <div class="header-main">
+      <div class="header-title-row">
+        <h1 class="header-title">Steam 同步</h1>
+      </div>
+      <p class="header-subtitle">连接 Steam 账户，将游戏库与累计游玩时长自动同步至书架。</p>
+    </div>
+  </div>
+
+  <div class="steam-workspace-grid">
+    <div class="steam-panel-card">
+      <div class="panel-card-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span>账户连接配置</span>
+      </div>
+
+      <form class="steam-form" method="post">
+        {% csrf_token %}
+        <div class="steam-fields">
+          {{ form.as_p }}
+        </div>
+        {% if connection %}
+        <p class="key-status-text">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          <span>API 密钥已加密保存在本机数据库；留空表示继续使用已有密钥。</span>
+        </p>
+        {% endif %}
+        <div class="steam-actions">
+          <button type="submit" name="action" value="sync" class="btn-action-primary" {% if connection.running %}disabled{% endif %}>
+            {% if connection.running %}
+            <span>正在同步…</span>
+            {% else %}
+            <span>保存并立即同步</span>
+            {% endif %}
+          </button>
+          <button type="submit" name="action" value="save" class="btn-action-secondary">保存设置</button>
+        </div>
+      </form>
+    </div>
+
+    <aside class="steam-guide-aside">
+      <div class="panel-card-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>连接前准备</span>
+      </div>
+
+      <div class="guide-body">
+        <ol class="guide-steps">
+          <li>在 Steam 客户端或网页端打开<strong>“编辑个人资料 → 隐私设置”</strong>，将“个人资料”与“游戏详情”设为<strong>公开</strong>，并取消勾选“始终将我的总游戏时间保密”。</li>
+          <li>从个人账户详情中复制 17 位纯数字的 <code>SteamID64</code>（以 7656119 开头）。</li>
+          <li>前往 <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer" class="subtle-link">Steam 官方页面 ↗</a> 生成 Web API 密钥。</li>
+        </ol>
+
+        <p class="guide-desc-text">同步规则：已存在的游戏条目仅刷新累计游玩时长，不会覆盖你现有的评分、状态和个人记录。新条目将按游玩时长自动设定状态。</p>
+
+        {% if connection.result %}
+        <div class="sync-result-box">
+          <div class="result-title-row">
+            <span class="status-indicator-dot"></span>
+            <strong>同步结果反馈</strong>
+          </div>
+          <p class="result-msg">{{ connection.result }}</p>
+          {% if connection.last_synced %}
+          <div class="result-time">上次同步时间：{{ connection.last_synced|date:"Y-m-d H:i" }}</div>
+          {% endif %}
+          <div class="result-action-row">
+            <a href="{% url 'library_steam' %}" class="btn-refresh-subtle">刷新结果状态</a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

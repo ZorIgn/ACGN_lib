@@ -1,0 +1,55 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}创建账号{% endblock %}
+
+{% block content %}
+<div class="auth-layout">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-brand-mark" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          <line x1="8" y1="6" x2="16" y2="6"></line>
+          <line x1="8" y1="10" x2="14" y2="10"></line>
+        </svg>
+      </div>
+      <h1 class="auth-title">创建书架账号</h1>
+      <p class="auth-subtitle">首次创建完成后，书架将作为专属私有工作区</p>
+    </div>
+
+    <form method="post" action="{% url 'account_signup' %}" class="auth-form">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="auth-error-alert" role="alert">
+        {{ form.non_field_errors }}
+      </div>
+      {% endif %}
+
+      <div class="form-field-group">
+        <label for="{{ form.username.id_for_label }}">用户名</label>
+        {{ form.username }}
+        {{ form.username.errors }}
+      </div>
+
+      <div class="form-field-group">
+        <label for="{{ form.password1.id_for_label }}">密码</label>
+        {{ form.password1 }}
+        {{ form.password1.errors }}
+      </div>
+
+      <div class="form-field-group">
+        <label for="{{ form.password2.id_for_label }}">确认密码</label>
+        {{ form.password2 }}
+        {{ form.password2.errors }}
+      </div>
+
+      <button type="submit" class="btn-action-primary auth-submit-btn">创建账号</button>
+    </form>
+
+    <div class="auth-footer-nav">
+      <a href="{% url 'account_login' %}" class="auth-nav-link">已有账号，去登录 →</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

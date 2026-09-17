@@ -1,0 +1,208 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}{% if draft %}{{ draft.title }}{% else %}添加作品{% endif %}{% endblock %}
+
+{% block content %}
+<div class="capture-page">
+  <div class="workspace-header">
+    <div class="header-main">
+      <div class="header-title-row">
+        <h1 class="header-title">{% if draft %}导入草稿{% else %}添加作品{% endif %}</h1>
+      </div>
+      <p class="header-subtitle">{% if draft %}{{ draft.title }} · 修改自动保存，全部页面一起导入。{% else %}搜索名称获取资料与封面，可多选并分别记录。{% endif %}</p>
+    </div>
+    {% if rows %}
+    <div class="header-actions">
+      <a href="{% url 'library_capture' %}" class="btn-subtle-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+        <span>返回清单</span>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if errors %}
+  <div role="alert" class="workspace-callout callout-error">
+    <div class="callout-icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    </div>
+    <div class="callout-content">
+      <strong class="callout-title">保存前请修正以下内容</strong>
+      <div class="error-list">
+        {% for error in errors %}
+        <p>{{ error }}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not rows %}
+  <div class="capture-workspace-card">
+    <form class="capture-form" method="post" data-busy="正在查找作品…">
+      {% csrf_token %}
+      <div class="form-row">
+        {{ form.as_p }}
+      </div>
+      <div class="form-footer-actions">
+        <button type="submit" class="btn-action-primary">搜索作品</button>
+      </div>
+    </form>
+    <div class="capture-guide-tips">
+      <h3 class="tips-heading">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        <span>输入提示</span>
+      </h3>
+      <ul class="tips-list">
+        <li>每行一部作品，最多 500 部，分批检索并自动保存草稿。</li>
+        <li>混合类型可写成 <code>小说 | 仙逆 | 很喜欢</code>，最后一项记录可省略。</li>
+        <li>支持粘贴 Bangumi 条目链接（如 <code>https://bgm.tv/subject/490347</code>）直接精准匹配。</li>
+        <li>支持粘贴 TMDB 电影或剧集条目链接。</li>
+        <li>其他第三方在线阅读/观看链接，将在检索后自动保存在“观看 / 阅读链接”字段中。</li>
+      </ul>
+    </div>
+  </div>
+  {% if drafts %}
+  <section class="import-drafts" aria-label="导入草稿">
+    <h2>导入草稿</h2>
+    <p>继续填写已保存的清单，或复用名单开始新的导入。</p>
+    <ul>
+      {% for saved in drafts %}
+      <li>
+        <div><a href="?draft={{ saved.id }}">{{ saved.title }}</a><small>{{ saved.updated_at|date:"Y-m-d H:i" }}{% if saved.imported_at %} · 已导入{% endif %}</small></div>
+        <div class="draft-actions"><a href="?draft={{ saved.id }}">继续填写</a><a href="?reuse={{ saved.id }}">复用名单</a></div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  {% endif %}
+
+  {% if rows %}
+  <form id="import-review" method="post" action="{% url 'library_capture' %}" data-review data-draft-id="{{ draft.id }}" data-user-id="{{ request.user.pk }}" data-page="{{ draft_page.number }}" class="review-container-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="import">
+    <input type="hidden" name="draft_id" value="{{ draft.id }}">
+    <input type="hidden" name="page" value="{{ draft_page.number }}">
+
+    <div class="review-items-stack">
+      {% for row in rows %}
+      <section class="review review-card">
+        <div class="review-top-bar">
+          <div class="review-title-group">
+            <span class="review-index-badge">{{ row.index|add:1 }}</span>
+            <h2 class="review-item-title">{{ row.input }}</h2>
+          </div>
+          <span class="multiselect-hint">可多选</span>
+        </div>
+
+        {% if row.notes %}
+        <div class="review-quote-box">
+          <span class="quote-prefix">原话：</span>
+          <span class="quote-text">{{ row.notes }}</span>
+        </div>
+        {% endif %}
+
+        {% if row.error %}
+        <div class="review-inline-error">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <span>{{ row.error }}</span>
+        </div>
+        {% endif %}
+
+        <div class="candidates-selection-grid">
+          {% for option in row.options %}
+            {% if not option.manual %}
+            <label for="choice-{{ row.index }}-{{ option.index }}" class="candidate-card candidate {% if option.selected %}is-active{% endif %}">
+              <input type="checkbox" name="choice_{{ row.index }}" value="{{ option.index }}" id="choice-{{ row.index }}-{{ option.index }}" {% if option.selected %}checked{% endif %} class="candidate-checkbox" data-editor-id="editor-{{ row.index }}-{{ option.index }}">
+              <div class="candidate-cover-frame cover" data-title="{{ option.title }}">
+                <img src="{{ option.image }}" alt="" loading="lazy">
+              </div>
+              <div class="candidate-info-block">
+                <strong class="candidate-name" title="{{ option.title }}">{{ option.title }}</strong>
+                <div class="candidate-meta-line">{{ option.kind_label }} · {{ option.year }} {{ option.format }}</div>
+                {% if option.author %}
+                <div class="candidate-sub-meta" title="{{ option.author }}">{{ option.author }}</div>
+                {% endif %}
+                {% if option.original_title and option.original_title != option.title %}
+                <div class="candidate-sub-meta muted" title="{{ option.original_title }}">{{ option.original_title }}</div>
+                {% endif %}
+              </div>
+            </label>
+            {% else %}
+            <div class="candidate-card candidate candidate-manual {% if option.selected %}is-active{% endif %}">
+              <label for="choice-{{ row.index }}-{{ option.index }}" class="manual-select-label">
+                <input type="checkbox" name="choice_{{ row.index }}" value="{{ option.index }}" id="choice-{{ row.index }}-{{ option.index }}" {% if option.selected %}checked{% endif %} class="candidate-checkbox" data-editor-id="editor-{{ row.index }}-{{ option.index }}">
+                <div class="manual-cover-placeholder" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </div>
+                <div class="candidate-info-block">
+                  <strong class="candidate-name">自定义作品</strong>
+                  <div class="candidate-meta-line">未查到资料时按名称创建</div>
+                </div>
+              </label>
+              <div class="manual-input-box">
+                <label for="manual-title-{{ row.index }}" class="sr-only">自定义作品名称</label>
+                <input type="text" id="manual-title-{{ row.index }}" name="manual_title_{{ row.index }}" value="{{ row.manual_title }}" placeholder="填写作品名称" maxlength="500" autocomplete="off">
+              </div>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <div class="review-personal-editors">
+          {% for option in row.options %}
+          <section class="personal-editor-pane" id="editor-{{ row.index }}-{{ option.index }}" data-editor-for="choice-{{ row.index }}-{{ option.index }}" {% if not option.selected %}style="display: none;"{% endif %}>
+            <div class="personal-editor-header">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+              <h3 class="editor-target-title">
+                {% if option.manual %}
+                自定义作品个人记录
+                {% else %}
+                《{{ option.title }}》个人记录
+                {% endif %}
+              </h3>
+            </div>
+            <div class="personal-fields">
+              {{ option.personal.as_p }}
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+
+    <div class="workspace-savebar">
+      <div class="savebar-text">
+        <span class="savebar-status-dot"></span>
+        <span><span data-save-status role="status">草稿已保存</span> · <span data-selected-count>已选 {{ draft_selected_count }} 部（全部页面）</span></span>
+      </div>
+      <div class="savebar-buttons">
+        <button type="button" class="btn-subtle-link" data-save-draft>保存草稿</button>
+        <button type="submit" class="btn-action-primary">导入全部已选作品</button>
+      </div>
+    </div>
+  </form>
+  {% endif %}
+
+  {% if draft_page.has_other_pages %}
+  <nav class="shelf-pagination" aria-label="导入清单分页">
+    {% if draft_page.has_previous %}
+    <button type="submit" form="import-review" name="target_page" value="{{ draft_page.previous_page_number }}" class="page-nav-btn">上一批</button>
+    {% endif %}
+    <span class="page-current">第 {{ draft_page.number }} / {{ draft_page.paginator.num_pages }} 批 · 共 {{ draft_page.paginator.count }} 部</span>
+    {% if draft_page.has_next %}
+    <button type="submit" form="import-review" name="target_page" value="{{ draft_page.next_page_number }}" class="page-nav-btn">下一批</button>
+    {% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

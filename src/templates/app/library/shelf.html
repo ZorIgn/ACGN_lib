@@ -1,0 +1,155 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}我的书架{% endblock %}
+
+{% block content %}
+<div class="shelf-page">
+  <div class="workspace-header">
+    <div class="header-main">
+      <div class="header-title-row">
+        <h1 class="header-title">我的书架</h1>
+        <span class="count-badge">{{ page.paginator.count }} 部作品</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a class="btn-action-primary" href="{% url 'library_capture' %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>添加作品</span>
+      </a>
+    </div>
+  </div>
+
+  {% if draft_count %}
+  <aside class="workspace-callout">
+    <div class="callout-icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+    </div>
+    <div class="callout-content">
+      <strong class="callout-title">导入草稿</strong>
+      <p class="callout-desc">继续填写清单，跨页保存后统一导入。</p>
+    </div>
+    <a href="{% url 'library_capture' %}" class="btn-callout">查看清单 →</a>
+  </aside>
+  {% endif %}
+
+  <form class="shelf-toolbar" method="get">
+    <div class="search-field">
+      <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="search" name="q" value="{{ query }}" placeholder="在书架中搜索作品名称..." autocomplete="off">
+    </div>
+
+    <div class="filter-controls">
+      <div class="select-wrapper">
+        <select name="type" aria-label="作品类型">
+          <option value="">全部类型</option>
+          {% for value, label in kinds.items %}
+          <option value="{{ value }}" {% if value == kind %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+
+      <div class="select-wrapper">
+        <select name="status" aria-label="作品状态">
+          <option value="">全部状态</option>
+          {% for value, label in states.items %}
+          <option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+
+      <button type="submit" class="btn-filter-submit">筛选</button>
+      {% if query or kind or status %}
+      <a href="{% url 'library' %}" class="btn-filter-reset" title="清除所有筛选">重置</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div class="shelf-grid">
+    {% for entry in page %}
+    <a class="work-card" href="{% url 'library_detail' entry.kind entry.record.pk %}">
+      <div class="cover media-cover" data-title="{{ entry.record.item.title }}">
+        <img src="{{ entry.record.item.image }}" alt="" loading="lazy">
+        <span class="type-badge">{{ entry.kind_label }}</span>
+        {% if entry.record.score != None %}
+        <span class="score-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>{{ entry.record.score|floatformat:"-1" }}</span>
+        </span>
+        {% endif %}
+      </div>
+      <div class="work-meta">
+        <h2 class="work-title" title="{{ entry.record.item.title }}">{{ entry.record.item.title }}</h2>
+        <div class="work-sub">
+          <span class="status-tag status-{{ entry.record.status|slugify }}">{{ entry.status_label }}</span>
+          {% if entry.kind == 'game' and entry.record.progress %}
+          <span class="playtime-tag">{{ entry.hours|floatformat:1 }} 小时</span>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% empty %}
+    <div class="shelf-empty">
+      <div class="empty-glyph" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          <line x1="9" y1="9" x2="15" y2="9"></line>
+          <line x1="9" y1="13" x2="13" y2="13"></line>
+        </svg>
+      </div>
+      <h2>{% if query or kind or status %}没有找到符合条件的作品{% else %}书架暂无作品{% endif %}</h2>
+      <p>{% if query or kind or status %}可以尝试清空搜索词或更换类型与状态筛选。{% else %}输入作品名称或条目链接，为你的私人书架增添第一部收藏。{% endif %}</p>
+      {% if query or kind or status %}
+      <a href="{% url 'library' %}" class="btn-empty-action">清除筛选</a>
+      {% else %}
+      <a href="{% url 'library_capture' %}" class="btn-empty-action">添加第一部作品</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if page.has_other_pages %}
+  <nav class="shelf-pagination" aria-label="分页导航">
+    {% if page.has_previous %}
+    <a href="{% querystring page=page.previous_page_number %}" class="page-nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <span>上一页</span>
+    </a>
+    {% else %}
+    <span class="page-nav-btn is-disabled">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <span>上一页</span>
+    </span>
+    {% endif %}
+
+    <span class="page-current">第 {{ page.number }} / {{ page.paginator.num_pages }} 页</span>
+
+    {% if page.has_next %}
+    <a href="{% querystring page=page.next_page_number %}" class="page-nav-btn">
+      <span>下一页</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </a>
+    {% else %}
+    <span class="page-nav-btn is-disabled">
+      <span>下一页</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </span>
+    {% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}
