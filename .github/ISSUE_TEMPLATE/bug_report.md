@@ -22,5 +22,5 @@ If applicable, add screenshots to help explain your problem.
 **Error logs**
  If you have any error logs, paste them here:
 
-**Yamtrack version**:
+**ACGLib version**:
 **Database**: SQLite (default) or PostgreSQL

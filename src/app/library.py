@@ -20,7 +20,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
 from app.models import Item, LibraryImportDraft, LibraryLink, Sources
-from app.providers import bangumi, services, webnovel
+from app.providers import bangumi, services, steam, webnovel
 
 KINDS = {
     "book": "小说",
@@ -155,18 +155,30 @@ def page_context(**kwargs):
 @require_GET
 def shelf(request):
     """Show the owner's media without contacting metadata providers."""
-    kind = request.GET.get("type", "")
-    status = request.GET.get("status", "")
+    selected_kinds = list(
+        dict.fromkeys(value for value in request.GET.getlist("type") if value in KINDS)
+    )
+    selected_states = list(
+        dict.fromkeys(
+            value
+            for value in request.GET.getlist("status")
+            if value in STATES or value == "unset"
+        )
+    )
     query = request.GET.get("q", "").strip()
     items = []
     for key in KINDS:
-        if kind and kind != key:
+        if selected_kinds and key not in selected_kinds:
             continue
         records = (
             model_for(key).objects.filter(user=request.user).select_related("item")
         )
-        if status in STATES:
-            records = records.filter(status=status)
+        if selected_states:
+            records = records.filter(
+                status__in=[
+                    "" if value == "unset" else value for value in selected_states
+                ]
+            )
         if query:
             records = records.filter(item__title__icontains=query)
         for record in records:
@@ -185,8 +197,8 @@ def shelf(request):
         "app/library/shelf.html",
         page_context(
             page=Paginator(items, 36).get_page(request.GET.get("page")),
-            kind=kind,
-            status=status,
+            selected_kinds=selected_kinds,
+            selected_states=selected_states,
             query=query,
             draft_count=LibraryImportDraft.objects.filter(user=request.user).count(),
         ),
@@ -545,13 +557,22 @@ def detail(request, kind, record_id):
         model_for(kind).objects.select_related("item"), pk=record_id, user=request.user
     )
     link = LibraryLink.objects.filter(user=request.user, item=record.item).first()
+    viewing_url = (
+        link.url
+        if link
+        else (
+            steam.store_url(record.item.media_id)
+            if record.item.source == Sources.STEAM
+            else ""
+        )
+    )
     form = PersonalRecordForm(
         request.POST if request.method == "POST" else None,
         initial={
             "score": record.score,
             "status": record.status,
             "notes": record.notes,
-            "viewing_url": link.url if link else "",
+            "viewing_url": viewing_url,
             "status_manual": record.score is not None and record.status == "",
         },
     )
@@ -560,7 +581,7 @@ def detail(request, kind, record_id):
             for key in ("score", "status", "notes"):
                 setattr(record, key, form.cleaned_data[key])
             models.Model.save(record, update_fields=["score", "status", "notes"])
-            if form.cleaned_data["viewing_url"]:
+            if form.cleaned_data["viewing_url"] or record.item.source == Sources.STEAM:
                 LibraryLink.objects.update_or_create(
                     user=request.user,
                     item=record.item,
@@ -587,7 +608,7 @@ def detail(request, kind, record_id):
             form=form,
             metadata=metadata,
             playtime_hours=record.progress / 60 if kind == "game" else None,
-            viewing_link=link.url if link else "",
+            viewing_link=viewing_url,
         ),
     )
 

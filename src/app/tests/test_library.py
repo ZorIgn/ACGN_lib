@@ -36,6 +36,9 @@ class LibraryTests(TestCase):
     def setUp(self):
         self.client.force_login(self.user)
         cache.clear()
+        covers = patch("app.library_tasks.steam.covers", return_value={})
+        covers.start()
+        self.addCleanup(covers.stop)
 
     def candidate(self):
         return {

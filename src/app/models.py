@@ -226,7 +226,7 @@ class LibraryLink(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    url = models.URLField(max_length=2000)
+    url = models.URLField(max_length=2000, blank=True)
 
     class Meta:
         """Keep one current link per owner and work."""

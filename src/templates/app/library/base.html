@@ -15,61 +15,24 @@
   <aside class="workspace-sidebar" aria-label="工作区侧边栏">
     <div class="sidebar-header">
       <a class="sidebar-brand" href="{% url 'library' %}">
-        <span class="brand-icon" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-            <line x1="8" y1="6" x2="16" y2="6"></line>
-            <line x1="8" y1="10" x2="14" y2="10"></line>
-          </svg>
-        </span>
-        <div class="brand-meta">
-          <span class="brand-title">ACGLib</span>
-          <span class="brand-badge">私人书架</span>
-        </div>
+        <span class="brand-title">ACGLib<span class="brand-period">.</span></span>
+        <span class="brand-badge">私人书架</span>
       </a>
     </div>
-
     <nav class="sidebar-nav" aria-label="主导航">
-      <div class="nav-group-label">个人收藏</div>
-      <a href="{% url 'library' %}" class="nav-link {% if request.resolver_match.url_name == 'library' or request.resolver_match.url_name == 'library_detail' %}is-active{% endif %}">
-        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
-        <span>书架</span>
-      </a>
-      <a href="{% url 'library_capture' %}" class="nav-link {% if request.resolver_match.url_name == 'library_capture' %}is-active{% endif %}">
-        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>添加作品</span>
-      </a>
-      <a href="{% url 'library_steam' %}" class="nav-link {% if request.resolver_match.url_name == 'library_steam' %}is-active{% endif %}">
-        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="6 3 18 3 21 8 3 8 6 3"></polygon>
-          <line x1="10" y1="13" x2="14" y2="13"></line>
-          <line x1="12" y1="11" x2="12" y2="15"></line>
-          <rect x="4" y="8" width="16" height="13" rx="2"></rect>
-        </svg>
-        <span>Steam 同步</span>
-      </a>
+      <a href="{% url 'library' %}" class="nav-link {% if request.resolver_match.url_name == 'library' or request.resolver_match.url_name == 'library_detail' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'library' or request.resolver_match.url_name == 'library_detail' %}aria-current="page"{% endif %}><span>我的书架</span></a>
+      <a href="{% url 'library_capture' %}" class="nav-link {% if request.resolver_match.url_name == 'library_capture' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'library_capture' %}aria-current="page"{% endif %}><span>添加作品</span></a>
+      <a href="{% url 'library_steam' %}" class="nav-link {% if request.resolver_match.url_name == 'library_steam' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'library_steam' %}aria-current="page"{% endif %}><span>Steam 同步</span></a>
     </nav>
-
     <div class="sidebar-footer">
       <div class="user-indicator">
-        <span class="user-avatar-dot" aria-hidden="true"></span>
+        <span class="user-monogram" aria-hidden="true">{{ user.username|first|upper }}</span>
         <span class="user-name" title="{{ user.username }}">{{ user.username }}</span>
       </div>
       <div class="sidebar-actions">
-        <a href="{% url 'library_source' %}" class="sidebar-sub-link" title="获取应用源码">源码</a>
-        <span class="divider" aria-hidden="true">·</span>
+        <a href="{% url 'library_source' %}" class="sidebar-sub-link">源码</a>
         <form action="{% url 'account_logout' %}" method="post" class="logout-inline-form">
-          {% csrf_token %}
-          <button class="logout-btn" type="submit">退出</button>
+          {% csrf_token %}<button class="logout-btn" type="submit">退出登录</button>
         </form>
       </div>
     </div>
@@ -77,12 +40,6 @@
 
   <header class="mobile-topbar" aria-label="移动端顶部栏">
     <a class="mobile-brand" href="{% url 'library' %}">
-      <span class="brand-icon" aria-hidden="true">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-        </svg>
-      </span>
       <span class="brand-title">ACGLib</span>
       <span class="brand-badge">私人书架</span>
     </a>

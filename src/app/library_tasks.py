@@ -2,10 +2,12 @@
 
 import requests
 from celery import shared_task
+from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
-from app.models import Game, Item, Sources, Status, SteamConnection
+from app.models import Game, Item, LibraryLink, Sources, Status, SteamConnection
+from app.providers import steam
 from integrations.imports.helpers import decrypt
 
 
@@ -49,6 +51,7 @@ def sync_steam(user_id):
     saved = SteamConnection.objects.get(user_id=user_id)
     try:
         games = fetch_games(saved)
+        artwork = steam.covers(data["appid"] for data in games)
         created = updated = 0
         with transaction.atomic():
             for data in games:
@@ -60,25 +63,37 @@ def sync_steam(user_id):
                     media_id=app_id,
                     defaults={
                         "title": data.get("name") or f"Steam {app_id}",
-                        "image": f"https://cdn.akamai.steamstatic.com/steam/apps/{app_id}/library_600x900.jpg",
+                        "image": artwork.get(app_id, settings.IMG_NONE),
                     },
+                )
+                if artwork.get(app_id) and item.image != artwork[app_id]:
+                    Item.objects.filter(pk=item.pk).update(image=artwork[app_id])
+                LibraryLink.objects.get_or_create(
+                    user_id=user_id,
+                    item=item,
+                    defaults={"url": steam.store_url(app_id)},
                 )
                 existing = Game.objects.filter(user_id=user_id, item=item).first()
                 if existing:
+                    fields = []
+                    if (
+                        minutes
+                        and existing.status == Status.PLANNING
+                        and existing.score is None
+                        and not existing.notes
+                        and existing.history.filter(history_type="+").exists()
+                        and not existing.history.exclude(history_type="+").exists()
+                    ):
+                        existing.status = Status.IN_PROGRESS
+                        fields.append("status")
                     if existing.progress != minutes:
                         existing.progress = minutes
-                        models.Model.save(existing, update_fields=["progress"])
+                        fields.append("progress")
+                    if fields:
+                        models.Model.save(existing, update_fields=fields)
                         updated += 1
                 else:
-                    status = (
-                        Status.PLANNING
-                        if not minutes
-                        else (
-                            Status.IN_PROGRESS
-                            if data.get("playtime_2weeks")
-                            else Status.PAUSED
-                        )
-                    )
+                    status = Status.IN_PROGRESS if minutes else Status.PLANNING
                     record = Game(
                         user_id=user_id, item=item, progress=minutes, status=status
                     )

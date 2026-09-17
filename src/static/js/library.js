@@ -217,11 +217,111 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const imageSelectors = '.cover img, .media-cover img, .detail-cover img, .candidate img, .candidate-cover-frame img';
-  document.querySelectorAll(imageSelectors).forEach(img => {
+  const initCovers = root => root.querySelectorAll(imageSelectors).forEach(img => {
     if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) {
       hideBrokenImage(img);
     } else {
       img.addEventListener('error', () => hideBrokenImage(img));
     }
   });
+  initCovers(document);
+
+  const filters = document.querySelector('[data-shelf-filter]');
+  if (filters) {
+    const feedback = document.querySelector('[data-filter-feedback]');
+    const reset = filters.querySelector('[data-filter-reset]');
+    const submit = filters.querySelector('button[type="submit"]');
+    let controller;
+    let searchTimer;
+    const syncLabels = () => {
+      for (const name of ['type', 'status']) {
+        const count = filters.querySelectorAll(`input[name="${name}"]:checked`).length;
+        filters.querySelector(`[data-filter-count="${name}"]`).textContent = count || '全部';
+      }
+      reset.hidden = !filters.elements.q.value && !filters.querySelector('input:checked');
+    };
+    const filterURL = () => {
+      const url = new URL(filters.getAttribute('action'), location.origin);
+      const params = new URLSearchParams(new FormData(filters));
+      if (!params.get('q')) params.delete('q');
+      url.search = params.toString();
+      return url;
+    };
+    const loadResults = async (url, recordHistory = true) => {
+      clearTimeout(searchTimer);
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      syncLabels();
+      document.getElementById('shelf-results').setAttribute('aria-busy', 'true');
+      feedback.hidden = true;
+      submit.textContent = '筛选中…';
+      try {
+        const response = await fetch(url, { signal: request.signal });
+        if (!response.ok) throw new Error('Filter request failed');
+        const html = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const results = html.getElementById('shelf-results');
+        const count = html.getElementById('shelf-count');
+        if (!results || !count) throw new Error('Missing shelf results');
+        if (request !== controller || request.signal.aborted) return;
+        document.getElementById('shelf-results').replaceWith(results);
+        document.getElementById('shelf-count').textContent = count.textContent;
+        initCovers(results);
+        if (recordHistory && url.href !== location.href) history.pushState(null, '', url);
+      } catch (error) {
+        if (request !== controller || error.name === 'AbortError') return;
+        feedback.textContent = '筛选未完成，当前仍显示上次结果。请点击「筛选」重试。';
+        feedback.hidden = false;
+      } finally {
+        if (request === controller) {
+          document.getElementById('shelf-results').removeAttribute('aria-busy');
+          submit.textContent = '筛选';
+        }
+      }
+    };
+    filters.addEventListener('submit', event => {
+      event.preventDefault();
+      loadResults(filterURL());
+    });
+    filters.addEventListener('change', event => {
+      if (event.target.type === 'checkbox') loadResults(filterURL());
+    });
+    filters.elements.q.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      controller?.abort();
+      syncLabels();
+      searchTimer = setTimeout(() => loadResults(filterURL()), 300);
+    });
+    reset.addEventListener('click', event => {
+      event.preventDefault();
+      filters.elements.q.value = '';
+      filters.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+      loadResults(filterURL());
+    });
+    document.addEventListener('click', event => {
+      filters.querySelectorAll('details[open]').forEach(menu => {
+        if (!menu.contains(event.target)) menu.open = false;
+      });
+      const link = event.target.closest('#shelf-results .shelf-pagination a');
+      if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      const url = filterURL();
+      url.searchParams.set('page', new URL(link.href).searchParams.get('page'));
+      loadResults(url);
+    });
+    filters.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        const menu = event.target.closest('details');
+        if (menu) { menu.open = false; menu.querySelector('summary').focus(); }
+      }
+    });
+    window.addEventListener('popstate', () => {
+      const params = new URL(location.href).searchParams;
+      filters.elements.q.value = params.get('q') || '';
+      filters.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        input.checked = params.getAll(input.name).includes(input.value);
+      });
+      loadResults(new URL(location.href), false);
+    });
+  }
 });
