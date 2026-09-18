@@ -7,7 +7,7 @@
   <div class="workspace-header">
     <div class="header-main">
       <div class="header-title-row">
-        <h1 class="header-title">我的书架</h1>
+        <h1 class="header-title">{% if folder %}{{ folder.name }}{% else %}我的书架{% endif %}</h1>
         <span class="count-badge" id="shelf-count">{{ page.paginator.count }} 部作品</span>
       </div>
     </div>
@@ -23,7 +23,38 @@
     </div>
   </div>
 
+  <div class="folder-bar">
+    <nav class="folder-list" aria-label="收藏文件夹">
+      <a class="folder-link {% if not folder %}is-active{% endif %}" href="{% querystring folder=None page=None %}" {% if not folder %}aria-current="page"{% endif %}>全部作品</a>
+      {% for saved in folders %}
+      <a class="folder-link {% if folder.pk == saved.pk %}is-active{% endif %}" href="{% querystring folder=saved.pk page=None %}" {% if folder.pk == saved.pk %}aria-current="page"{% endif %}><span>{{ saved.name }}</span><small>{{ saved.item_count }}</small></a>
+      {% endfor %}
+    </nav>
+    <details class="folder-manage">
+      <summary>管理文件夹</summary>
+      <div class="folder-manage-panel">
+        <form method="post" action="{% url 'library_folders' %}" class="folder-create-form">
+          {% csrf_token %}<input type="hidden" name="action" value="create"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <label for="folder-name">新建文件夹</label>
+          <div><input type="text" id="folder-name" name="name" maxlength="80" required placeholder="例如：最爱的科幻"><button type="submit" class="btn-action-secondary">新建</button></div>
+        </form>
+        {% if folder %}
+        <form method="post" action="{% url 'library_folders' %}" class="folder-rename-form">
+          {% csrf_token %}<input type="hidden" name="action" value="rename"><input type="hidden" name="folder_id" value="{{ folder.pk }}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <label for="folder-rename">当前文件夹名称</label>
+          <div><input type="text" id="folder-rename" name="name" value="{{ folder.name }}" maxlength="80" required><button type="submit" class="btn-action-secondary">改名</button></div>
+        </form>
+        <form method="post" action="{% url 'library_folders' %}" data-confirm="删除这个文件夹？作品仍会保留在书架中。">
+          {% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="folder_id" value="{{ folder.pk }}">
+          <button type="submit" class="folder-delete">删除当前文件夹</button><p>只删除分类，作品仍保留在书架中。</p>
+        </form>
+        {% endif %}
+      </div>
+    </details>
+  </div>
+
   <form class="shelf-toolbar" method="get" action="{% url 'library' %}" data-shelf-filter>
+    {% if folder %}<input type="hidden" name="folder" value="{{ folder.pk }}">{% endif %}
     <div class="search-field">
       <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="11" cy="11" r="8"></circle>
@@ -53,7 +84,7 @@
         </fieldset>
       </details>
       <button type="submit" class="btn-filter-submit">筛选</button>
-      <a href="{% url 'library' %}" class="btn-filter-reset" data-filter-reset {% if not query and not selected_kinds and not selected_states %}hidden{% endif %}>重置</a>
+      <a href="{% url 'library' %}{% if folder %}?folder={{ folder.pk }}{% endif %}" class="btn-filter-reset" data-filter-reset {% if not query and not selected_kinds and not selected_states %}hidden{% endif %}>重置</a>
     </div>
   </form>
   <p class="filter-feedback" data-filter-feedback role="status" hidden></p>
@@ -61,7 +92,7 @@
   <div id="shelf-results" aria-live="polite">
   <div class="shelf-grid">
     {% for entry in page %}
-    <a class="work-card" href="{% url 'library_detail' entry.kind entry.record.pk %}">
+    <a class="work-card" data-record-link href="{% url 'library_detail' entry.kind entry.record.pk %}?next={{ request.get_full_path|urlencode }}">
       <div class="cover media-cover" data-title="{{ entry.record.item.title }}">
         <img src="{{ entry.record.item.image }}" alt="" loading="lazy">
         <span class="type-badge">{{ entry.kind_label }}</span>
@@ -94,10 +125,12 @@
           <line x1="9" y1="13" x2="13" y2="13"></line>
         </svg>
       </div>
-      <h2>{% if query or selected_kinds or selected_states %}没有找到符合条件的作品{% else %}书架暂无作品{% endif %}</h2>
-      <p>{% if query or selected_kinds or selected_states %}可以尝试清空搜索词或更换类型与状态筛选。{% else %}输入作品名称或条目链接，为你的私人书架增添第一部收藏。{% endif %}</p>
+      <h2>{% if query or selected_kinds or selected_states %}没有找到符合条件的作品{% elif folder %}这个文件夹还没有作品{% else %}书架暂无作品{% endif %}</h2>
+      <p>{% if query or selected_kinds or selected_states %}可以尝试清空搜索词或更换类型与状态筛选。{% elif folder %}打开书架中的作品，在「收藏文件夹」中勾选这个文件夹即可归类。{% else %}输入作品名称或条目链接，为你的私人书架增添第一部收藏。{% endif %}</p>
       {% if query or selected_kinds or selected_states %}
-      <a href="{% url 'library' %}" class="btn-empty-action">清除筛选</a>
+      <a href="{% url 'library' %}{% if folder %}?folder={{ folder.pk }}{% endif %}" class="btn-empty-action">清除筛选</a>
+      {% elif folder %}
+      <a href="{% url 'library' %}" class="btn-empty-action">浏览全部作品</a>
       {% else %}
       <a href="{% url 'library_capture' %}" class="btn-empty-action">添加第一部作品</a>
       {% endif %}

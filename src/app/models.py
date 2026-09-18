@@ -241,9 +241,27 @@ class LibraryImportDraft(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     entries = models.JSONField(default=list)
+    return_url = models.CharField(max_length=2000, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     imported_at = models.DateTimeField(null=True, blank=True)
+
+
+class LibraryFolder(models.Model):
+    """An owner's collection of works across media types."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    name = models.CharField(max_length=80)
+    items = models.ManyToManyField(Item, related_name="library_folders", blank=True)
+
+    class Meta:
+        ordering = ["name", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "name"], name="library_folder_owner_name")
+        ]
+
+    def __str__(self):
+        return self.name
 
 
 class SteamConnection(models.Model):

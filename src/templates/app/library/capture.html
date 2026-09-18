@@ -13,9 +13,9 @@
     </div>
     {% if rows %}
     <div class="header-actions">
-      <a href="{% url 'library_capture' %}" class="btn-subtle-link">
+      <a href="{{ return_url }}" class="btn-subtle-link">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-        <span>返回清单</span>
+        <span>返回上一页</span>
       </a>
     </div>
     {% endif %}
@@ -45,10 +45,10 @@
   <div class="capture-workspace-card">
     <form class="capture-form" method="post" data-busy="正在查找作品…">
       {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}" data-return-field>
       <div class="form-row">
-        {{ form.as_p }}
-      </div>
-      <div class="form-footer-actions">
+        <div class="capture-kind">{{ form.media_type.label_tag }}{{ form.media_type }}{{ form.media_type.errors }}</div>
+        <div class="capture-query">{{ form.entries.label_tag }}{{ form.entries }}{{ form.entries.errors }}</div>
         <button type="submit" class="btn-action-primary">搜索作品</button>
       </div>
     </form>
@@ -69,8 +69,7 @@
   <section class="discovery-section" data-discovery data-url="{% url 'library_recommendations' %}" aria-labelledby="discovery-title">
     <div class="discovery-heading">
       <div>
-        <h2 class="discovery-title" id="discovery-title">发现下一部喜欢的作品</h2>
-        <p class="discovery-caption">从你的收藏出发，也看看值得留意的热门。</p>
+        <h2 class="discovery-title" id="discovery-title">发现下一部</h2>
       </div>
       <div class="discovery-tabs" role="group" aria-label="推荐方式">
         <button type="button" class="discovery-tab is-active" data-recommend-mode="personal" aria-pressed="true">为你推荐</button>
@@ -90,8 +89,8 @@
     <ul>
       {% for saved in drafts %}
       <li>
-        <div><a href="?draft={{ saved.id }}">{{ saved.title }}</a><small>{{ saved.updated_at|date:"Y-m-d H:i" }}{% if saved.imported_at %} · 已导入{% endif %}</small></div>
-        <div class="draft-actions"><a href="?draft={{ saved.id }}">继续填写</a><a href="?reuse={{ saved.id }}">复用名单</a></div>
+        <div><a href="?draft={{ saved.id }}&amp;next={{ request.get_full_path|urlencode }}" data-record-link>{{ saved.title }}</a><small>{{ saved.updated_at|date:"Y-m-d H:i" }}{% if saved.imported_at %} · 已导入{% endif %}</small></div>
+        <div class="draft-actions"><a href="?draft={{ saved.id }}&amp;next={{ request.get_full_path|urlencode }}" data-record-link>继续填写</a><a href="?reuse={{ saved.id }}">复用名单</a></div>
       </li>
       {% endfor %}
     </ul>
@@ -203,7 +202,7 @@
         <span><span data-save-status role="status">草稿已保存</span> · <span data-selected-count>已选 {{ draft_selected_count }} 部（全部页面）</span></span>
       </div>
       <div class="savebar-buttons">
-        <button type="button" class="btn-subtle-link" data-save-draft>保存草稿</button>
+        <button type="submit" name="save_return" value="1" class="btn-subtle-link" data-save-draft formnovalidate>保存草稿并返回</button>
         <button type="submit" class="btn-action-primary">导入全部已选作品</button>
       </div>
     </div>

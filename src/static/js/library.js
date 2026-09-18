@@ -1,4 +1,43 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const originKey = `acglib-origin:${document.body.dataset.userId}`;
+  const currentPath = () => location.pathname + location.search;
+  const captureInput = document.querySelector('.capture-form textarea');
+  let originState;
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(originKey));
+    if (stored?.url === currentPath()) originState = stored;
+  } catch (_) {}
+  const resizeCapture = () => {
+    if (!captureInput) return;
+    captureInput.style.height = 'auto';
+    captureInput.style.height = `${Math.min(144, Math.max(44, captureInput.scrollHeight))}px`;
+  };
+  if (captureInput) {
+    if (originState?.entries !== undefined) captureInput.value = originState.entries;
+    captureInput.addEventListener('input', resizeCapture);
+    window.addEventListener('resize', resizeCapture);
+    resizeCapture();
+  }
+  const rememberOrigin = () => {
+    try {
+      sessionStorage.setItem(originKey, JSON.stringify({url: currentPath(), scroll: scrollY, entries: captureInput?.value}));
+    } catch (_) {}
+  };
+  const restoreOrigin = () => {
+    if (!originState) return;
+    const position = originState.scroll;
+    originState = null;
+    try { sessionStorage.removeItem(originKey); } catch (_) {}
+    requestAnimationFrame(() => window.scrollTo({top: position, behavior: 'instant'}));
+  };
+  document.addEventListener('click', event => {
+    const link = event.target.closest('a[data-record-link]');
+    if (!link) return;
+    const url = new URL(link.href);
+    url.searchParams.set('next', currentPath());
+    link.href = url;
+    rememberOrigin();
+  });
   const review = document.querySelector('form[data-draft-id]');
   const fieldName = /^(choice_\d+|manual_title_\d+|\d+-\d+-(score|status|notes|viewing_url|status_manual))$/;
   const draftKey = review ? `acglib-draft:${review.dataset.userId}:${review.dataset.draftId}:${review.dataset.page}` : null;
@@ -169,7 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     review.addEventListener('input', changed);
     review.addEventListener('change', changed);
-    review.querySelector('[data-save-draft]').addEventListener('click', () => save().catch(() => {}));
     review.addEventListener('submit', async event => {
       event.preventDefault();
       const button = event.submitter;
@@ -180,7 +218,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (button?.name === 'target_page') {
           window.location.assign(`/library/add/?draft=${review.dataset.draftId}&page=${button.value}`);
         } else {
-          if (button) { button.disabled = true; button.textContent = '正在导入…'; }
+          const draftOnly = button?.hasAttribute('data-save-draft');
+          review.elements.action.value = draftOnly ? 'save_return' : 'import';
+          if (button) { button.disabled = true; button.textContent = draftOnly ? '正在保存…' : '正在导入…'; }
           HTMLFormElement.prototype.submit.call(review);
         }
       } catch (_) { leaving = false; }
@@ -203,6 +243,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('submit', event => {
+    if (event.target.dataset.confirm && !window.confirm(event.target.dataset.confirm)) {
+      event.preventDefault();
+      return;
+    }
+    if (event.target.matches('.capture-form, .recommendation-body form') && !event.defaultPrevented) {
+      event.target.querySelector('[data-return-field]').value = currentPath();
+      rememberOrigin();
+    }
     const form = event.target.closest('form[data-busy]');
     if (!form || event.defaultPrevented) return;
     const button = event.submitter || form.querySelector('button[type=submit]') || form.querySelector('button:not([type=button])');
@@ -231,9 +279,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const results = discovery.querySelector('[data-recommendations]');
     const retry = discovery.querySelector('[data-recommend-retry]');
     const kind = document.querySelector('.capture-form [name="media_type"]');
-    let mode = 'personal';
+    const params = new URL(location.href).searchParams;
+    let mode = params.get('mode') === 'popular' ? 'popular' : 'personal';
+    let pageNumber = Math.max(1, Number(params.get('recommend_page')) || 1);
     let controller;
-    const loadRecommendations = async () => {
+    const updateTabs = () => discovery.querySelectorAll('[data-recommend-mode]').forEach(tab => {
+      const active = tab.dataset.recommendMode === mode;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-pressed', String(active));
+    });
+    const updateLocation = push => {
+      const url = new URL(location.href);
+      url.searchParams.set('type', kind.value);
+      url.searchParams.set('mode', mode);
+      url.searchParams.set('recommend_page', pageNumber);
+      if (url.href !== location.href) history[push ? 'pushState' : 'replaceState'](null, '', url);
+    };
+    const loadRecommendations = async (push = false) => {
       controller?.abort();
       const request = new AbortController();
       controller = request;
@@ -243,12 +305,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = new URL(discovery.dataset.url, location.origin);
       url.searchParams.set('type', kind.value);
       url.searchParams.set('mode', mode);
+      url.searchParams.set('page', pageNumber);
+      updateTabs();
+      updateLocation(push);
       try {
         const response = await fetch(url, { signal: request.signal });
         if (!response.ok || response.redirected) throw new Error('Recommendations unavailable');
         const html = await response.text();
         if (request !== controller || request.signal.aborted) return;
         results.innerHTML = html;
+        pageNumber = Number(results.querySelector('[data-recommend-current]')?.dataset.recommendCurrent) || pageNumber;
+        updateLocation(false);
         initCovers(results);
         retry.hidden = !results.querySelector('[data-recommend-unavailable]');
       } catch (error) {
@@ -256,23 +323,37 @@ document.addEventListener('DOMContentLoaded', () => {
         results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '推荐暂时无法加载。可以重试，或继续搜索作品。' }));
         retry.hidden = false;
       } finally {
-        if (request === controller) results.removeAttribute('aria-busy');
+        if (request === controller) {
+          results.removeAttribute('aria-busy');
+          restoreOrigin();
+        }
       }
     };
-    kind.addEventListener('change', loadRecommendations);
+    kind.addEventListener('change', () => { pageNumber = 1; loadRecommendations(true); });
     discovery.querySelectorAll('[data-recommend-mode]').forEach(button => {
       button.addEventListener('click', () => {
         mode = button.dataset.recommendMode;
-        discovery.querySelectorAll('[data-recommend-mode]').forEach(tab => {
-          const active = tab === button;
-          tab.classList.toggle('is-active', active);
-          tab.setAttribute('aria-pressed', String(active));
-        });
-        loadRecommendations();
+        pageNumber = 1;
+        loadRecommendations(true);
       });
     });
-    retry.addEventListener('click', loadRecommendations);
+    results.addEventListener('click', event => {
+      const button = event.target.closest('[data-recommend-page]');
+      if (!button || button.disabled) return;
+      pageNumber = Number(button.dataset.recommendPage);
+      loadRecommendations(true);
+    });
+    window.addEventListener('popstate', () => {
+      const params = new URL(location.href).searchParams;
+      kind.value = params.get('type') || 'book';
+      mode = params.get('mode') === 'popular' ? 'popular' : 'personal';
+      pageNumber = Number(params.get('recommend_page')) || 1;
+      loadRecommendations();
+    });
+    retry.addEventListener('click', () => loadRecommendations());
     loadRecommendations();
+  } else {
+    restoreOrigin();
   }
 
   const filters = document.querySelector('[data-shelf-filter]');

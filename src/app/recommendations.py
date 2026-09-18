@@ -92,7 +92,7 @@ def safely(load):
         return None
 
 
-def rank(candidates, seeds, owned, *, personal=True, limit=12):
+def rank(candidates, seeds, owned, *, personal=True, limit=50):
     """Blend TF-IDF taste similarity with heat, then diversify the shortlist."""
     owned_ids = {(row.item.source, str(row.item.media_id)) for row in owned}
     owned_names = {normalize(row.item.title) for row in owned}

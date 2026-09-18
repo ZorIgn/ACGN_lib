@@ -2,6 +2,7 @@
 
 from django.contrib.auth.decorators import login_required
 from django.core import signing
+from django.core.paginator import Paginator
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
@@ -34,7 +35,8 @@ def suggestions(request):
     if kind not in recommendations.KINDS or mode not in {"personal", "popular"}:
         raise Http404
     result = recommendations.recommend(request.user, kind, mode)
-    for item in result["items"]:
+    page = Paginator(result["items"], 12).get_page(request.GET.get("page"))
+    for item in page:
         candidate = {key: item.get(key, "") for key in CANDIDATE_FIELDS}
         candidate["kind_label"] = library.KINDS[kind]
         item["token"] = signing.dumps(
@@ -45,7 +47,14 @@ def suggestions(request):
     return render(
         request,
         "app/library/recommendations.html",
-        {**result, "mode": mode, "kind_label": library.KINDS[kind]},
+        {
+            **result,
+            "items": page.object_list,
+            "recommend_page": page,
+            "mode": mode,
+            "kind_label": library.KINDS[kind],
+            "return_url": f"/library/add/?type={kind}&mode={mode}&recommend_page={page.number}",
+        },
     )
 
 
@@ -82,6 +91,9 @@ def choose(request):
         },
     }
     draft = LibraryImportDraft.objects.create(
-        user=request.user, title=candidate["title"][:150], entries=[row]
+        user=request.user,
+        title=candidate["title"][:150],
+        entries=[row],
+        return_url=library.return_url(request.POST.get("next")),
     )
     return redirect(library.draft_url(draft))

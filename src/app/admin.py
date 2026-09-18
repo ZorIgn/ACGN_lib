@@ -60,7 +60,7 @@ class MediaAdmin(admin.ModelAdmin):
 # Auto-register remaining models
 app_models = apps.get_app_config("app").get_models()
 admin.site.register(LibraryLink)
-SpecialModels = ["Item", "Episode", "BasicMedia", "UserMessage", "LibraryLink", "SteamConnection", "LibraryImportDraft"]
+SpecialModels = ["Item", "Episode", "BasicMedia", "UserMessage", "LibraryLink", "SteamConnection", "LibraryImportDraft", "LibraryFolder"]
 for model in app_models:
     if (
         not model.__name__.startswith("Historical")

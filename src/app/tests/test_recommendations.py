@@ -278,6 +278,24 @@ class DiscoveryProviderTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
 
+    def test_popular_pool_follows_twenty_item_catalog_pages(self):
+        def page(url, *, params, payload):
+            return {
+                "data": [
+                    {"id": i, "name": f"游戏{i}", "type": 4}
+                    for i in range(params["offset"], params["offset"] + 20)
+                ]
+            }
+
+        with patch.object(discovery, "public_json", side_effect=page) as request:
+            rows = discovery.bangumi_catalog("game")
+        self.assertEqual(len(rows), 100)
+        self.assertEqual(len({row["media_id"] for row in rows}), 100)
+        self.assertEqual(
+            [call.kwargs["params"]["offset"] for call in request.call_args_list],
+            [0, 20, 40, 60, 80],
+        )
+
     def test_novel_catalog_keeps_chart_rank_and_caches_public_data(self):
         data = {
             "data": {

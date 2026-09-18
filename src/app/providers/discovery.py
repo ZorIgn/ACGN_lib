@@ -99,24 +99,25 @@ def bangumi_catalog(kind, tag=""):
         tags = ["小说"] if kind == "book" else ["漫画"] if kind == "manga" else []
         if tag and tag not in tags:
             tags.append(tag)
-        data = public_json(
-            f"{bangumi.BASE_URL}/search/subjects",
-            params={"limit": 48, "offset": 0},
-            payload={
-                "keyword": "",
-                "sort": "heat",
-                "filter": {
-                    "type": [bangumi.SUBJECT_TYPES[kind]],
-                    "tag": tags,
-                    "nsfw": False,
+        rows = []
+        for offset in [0, 20] if tag else [0, 20, 40, 60, 80]:
+            data = public_json(
+                f"{bangumi.BASE_URL}/search/subjects",
+                params={"limit": 20, "offset": offset},
+                payload={
+                    "keyword": "",
+                    "sort": "heat",
+                    "filter": {
+                        "type": [bangumi.SUBJECT_TYPES[kind]],
+                        "tag": tags,
+                        "nsfw": False,
+                    },
                 },
-            },
-        )
-        return [
-            bgm_document(row)
-            for row in data.get("data", [])
-            if bangumi.media_type(row) == kind
-        ]
+            )
+            rows.extend(data.get("data", []))
+            if len(data.get("data", [])) < 20:
+                break
+        return [bgm_document(row) for row in rows if bangumi.media_type(row) == kind]
 
     return cached(f"bangumi:{kind}:{tag}", load)
 
@@ -155,14 +156,15 @@ def movie_catalog(kind, seed_id=""):
 
     def load():
         path = f"{kind}/{seed_id}/recommendations" if seed_id else f"{kind}/popular"
-        data = public_json(
-            f"{tmdb.base_url}/{path}", params={**tmdb.base_params, "page": 1}
-        )
-        return [
-            movie_document(row, kind)
-            for row in data.get("results", [])
-            if not row.get("adult")
-        ]
+        rows = []
+        for page in [1] if seed_id else [1, 2, 3]:
+            data = public_json(
+                f"{tmdb.base_url}/{path}", params={**tmdb.base_params, "page": page}
+            )
+            rows.extend(data.get("results", []))
+            if page >= data.get("total_pages", 1):
+                break
+        return [movie_document(row, kind) for row in rows if not row.get("adult")]
 
     return cached(f"tmdb:{kind}:{seed_id}", load)
 

@@ -7,6 +7,15 @@
   {% else %}这个类型的偏好资料还不够，先看看热门{{ kind_label }}；收藏和评分后会更贴近你的口味。{% endif %}
   {% if partial %}部分资料源暂时不可用，当前展示已获取的结果。{% endif %}
 </p>
+{% if items %}
+<nav class="recommendation-pagination" data-recommend-current="{{ recommend_page.number }}" aria-label="推荐分页">
+  <span>共 {{ recommend_page.paginator.count }} 部 · 第 {{ recommend_page.number }} / {{ recommend_page.paginator.num_pages }} 页</span>
+  <div>
+    <button type="button" class="page-nav-btn" data-recommend-page="{{ recommend_page.number|add:'-1' }}" {% if not recommend_page.has_previous %}disabled{% endif %}>上一页</button>
+    <button type="button" class="page-nav-btn" data-recommend-page="{{ recommend_page.number|add:'1' }}" {% if not recommend_page.has_next %}disabled{% endif %}>下一页</button>
+  </div>
+</nav>
+{% endif %}
 <div class="recommendation-grid">
   {% for item in items %}
   <article class="recommendation-card">
@@ -18,6 +27,7 @@
       <form method="post" action="{% url 'library_recommendation_choose' %}" data-busy="正在打开…">
         {% csrf_token %}
         <input type="hidden" name="candidate" value="{{ item.token }}">
+        <input type="hidden" name="next" value="{{ return_url }}" data-return-field>
         <button type="submit" class="recommendation-action" aria-label="将{{ item.title }}加入清单">加入清单 <span aria-hidden="true">＋</span></button>
       </form>
     </div>

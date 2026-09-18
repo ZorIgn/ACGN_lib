@@ -5,7 +5,7 @@ import re
 import unicodedata
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from django import forms
 from django.apps import apps
@@ -19,7 +19,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
-from app.models import Item, LibraryImportDraft, LibraryLink, Sources
+from app.models import Item, LibraryFolder, LibraryImportDraft, LibraryLink, Sources
 from app.providers import bangumi, services, steam, webnovel
 
 KINDS = {
@@ -99,6 +99,19 @@ class PersonalRecordForm(forms.Form):
         return url
 
 
+class DetailRecordForm(PersonalRecordForm):
+    folders = forms.ModelMultipleChoiceField(
+        label="收藏文件夹",
+        queryset=LibraryFolder.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["folders"].queryset = LibraryFolder.objects.filter(user=user)
+
+
 class CaptureForm(forms.Form):
     """Accept names or supported catalog URLs."""
 
@@ -108,7 +121,7 @@ class CaptureForm(forms.Form):
         max_length=10000,
         widget=forms.Textarea(
             attrs={
-                "rows": 2,
+                "rows": 1,
                 "placeholder": "输入作品名称或链接；批量添加时，每行一部",
             }
         ),
@@ -147,6 +160,20 @@ def model_for(kind):
     return apps.get_model("app", kind)
 
 
+def return_url(value, fallback="/library/add/"):
+    """Restrict return navigation to the two library entry pages."""
+    value = str(value or "")
+    if len(value) > 2000 or "\\" in value or any(ord(char) < 32 for char in value):
+        return fallback
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return fallback
+    if parts.scheme or parts.netloc or parts.path not in {"/library/", "/library/add/"}:
+        return fallback
+    return value
+
+
 def page_context(**kwargs):
     """Share the small navigation vocabulary."""
     return {"kinds": KINDS, "states": STATES, **kwargs}
@@ -166,6 +193,15 @@ def shelf(request):
         )
     )
     query = request.GET.get("q", "").strip()
+    folders = LibraryFolder.objects.filter(user=request.user).annotate(
+        item_count=models.Count("items")
+    )
+    folder_id = request.GET.get("folder", "")
+    folder = None
+    if folder_id:
+        if not folder_id.isdecimal():
+            raise Http404
+        folder = get_object_or_404(folders, pk=folder_id)
     items = []
     for key in KINDS:
         if selected_kinds and key not in selected_kinds:
@@ -173,6 +209,8 @@ def shelf(request):
         records = (
             model_for(key).objects.filter(user=request.user).select_related("item")
         )
+        if folder:
+            records = records.filter(item__library_folders=folder)
         if selected_states:
             records = records.filter(
                 status__in=[
@@ -200,6 +238,8 @@ def shelf(request):
             selected_kinds=selected_kinds,
             selected_states=selected_states,
             query=query,
+            folders=folders,
+            folder=folder,
             draft_count=LibraryImportDraft.objects.filter(user=request.user).count(),
         ),
     )
@@ -368,6 +408,7 @@ def render_draft(request, draft, page_number=1, errors=None):
             rows=rows,
             draft_selected_count=selected_count(draft),
             errors=errors,
+            return_url=return_url(draft.return_url),
         ),
         status=400 if errors else 200,
     )
@@ -435,11 +476,23 @@ def capture(request):
                 return JsonResponse(
                     {"ok": True, "selected_count": selected_count(draft)}
                 )
+            if request.POST.get("action") == "save_return" or request.POST.get(
+                "save_return"
+            ):
+                messages.success(request, "草稿已保存。")
+                return redirect(return_url(draft.return_url))
             if request.POST.get("target_page"):
                 return redirect(draft_url(draft, request.POST["target_page"]))
             return import_draft(request, draft)
+        if request.GET.get("next"):
+            draft.return_url = return_url(request.GET["next"])
+            draft.save(update_fields=["return_url"])
         return render_draft(request, draft, request.GET.get("page", 1))
-    initial = None
+    initial = {
+        "media_type": request.GET.get("type", "book")
+        if request.GET.get("type", "book") in KINDS
+        else "book"
+    }
     if request.GET.get("reuse"):
         try:
             reuse_id = uuid.UUID(request.GET["reuse"])
@@ -462,6 +515,7 @@ def capture(request):
             user=request.user,
             title=f"{entries[0]['input'][:150]}等 {len(entries)} 部作品",
             entries=entries,
+            return_url=return_url(request.POST.get("next")),
         )
         return redirect(draft_url(draft))
     return render(
@@ -547,7 +601,7 @@ def import_draft(request, draft):
         draft.imported_at = timezone.now()
         draft.save(update_fields=["imported_at", "updated_at"])
     messages.success(request, f"已加入 {created} 部作品；已有条目保持原样。")
-    return redirect("library")
+    return redirect(return_url(draft.return_url))
 
 
 @require_http_methods(["GET", "POST"])
@@ -566,14 +620,24 @@ def detail(request, kind, record_id):
             else ""
         )
     )
-    form = PersonalRecordForm(
+    destination = return_url(
+        request.POST.get("next")
+        if request.method == "POST"
+        else request.GET.get("next"),
+        "/library/",
+    )
+    form = DetailRecordForm(
         request.POST if request.method == "POST" else None,
+        user=request.user,
         initial={
             "score": record.score,
             "status": record.status,
             "notes": record.notes,
             "viewing_url": viewing_url,
             "status_manual": record.score is not None and record.status == "",
+            "folders": LibraryFolder.objects.filter(
+                user=request.user, items=record.item
+            ),
         },
     )
     if request.method == "POST" and form.is_valid():
@@ -589,8 +653,15 @@ def detail(request, kind, record_id):
                 )
             else:
                 LibraryLink.objects.filter(user=request.user, item=record.item).delete()
+            selected = form.cleaned_data["folders"]
+            for folder in LibraryFolder.objects.filter(
+                user=request.user, items=record.item
+            ).exclude(pk__in=selected):
+                folder.items.remove(record.item)
+            for folder in selected:
+                folder.items.add(record.item)
         messages.success(request, "已保存。")
-        return redirect("library_detail", kind=kind, record_id=record.pk)
+        return redirect(destination)
     metadata = {}
     try:
         metadata = services.get_media_metadata(
@@ -609,6 +680,7 @@ def detail(request, kind, record_id):
             metadata=metadata,
             playtime_hours=record.progress / 60 if kind == "game" else None,
             viewing_link=viewing_url,
+            return_url=destination,
         ),
     )
 

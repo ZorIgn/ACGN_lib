@@ -4,7 +4,7 @@ from allauth.account import views as accounts
 from django.urls import path
 from django.views.generic import RedirectView
 
-from app import library, library_discovery, library_steam
+from app import library, library_discovery, library_folders, library_steam
 
 urlpatterns = [
     path(
@@ -12,6 +12,7 @@ urlpatterns = [
     ),
     path("library/", library.shelf, name="library"),
     path("library/add/", library.capture, name="library_capture"),
+    path("library/folders/", library_folders.manage, name="library_folders"),
     path(
         "library/recommendations/",
         library_discovery.suggestions,
