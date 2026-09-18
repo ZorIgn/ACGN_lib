@@ -2,9 +2,11 @@
 
 import argparse
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -14,9 +16,11 @@ DIST = ROOT / "dist" / "ACGLib"
 
 
 def main():
-    """Bundle the pinned runtime, application source and initial review list."""
+    """Bundle the runtime, application and matching source for Windows."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive-only", action="store_true")
+    parser.add_argument("--installer", action="store_true")
+    parser.add_argument("--iscc", type=Path)
     args = parser.parse_args()
     BUILD.mkdir(exist_ok=True)
     DIST.mkdir(parents=True, exist_ok=True)
@@ -90,6 +94,8 @@ def main():
         "pyproject.toml",
         "uv.lock",
         ".env.example",
+        "desktop/Launcher.cs",
+        "desktop/installer.iss",
     ]
     for name in source_files:
         (DIST / name).parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +109,25 @@ def main():
         ),
     )
     (DIST / "src" / "db").mkdir(exist_ok=True)
-    initial = ROOT / "src" / "db" / "initial-library.json"
-    if initial.exists():
-        shutil.copy2(initial, DIST / "src" / "db" / initial.name)
+    compiler = (
+        Path(os.environ.get("WINDIR", "C:/Windows"))
+        / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+    )
+    subprocess.run(
+        [
+            str(compiler),
+            "/nologo",
+            "/target:winexe",
+            "/optimize+",
+            "/platform:anycpu",
+            f"/out:{DIST / 'ACGLib.exe'}",
+            f"/win32icon:{ROOT / 'src/static/img/acglib.ico'}",
+            "/reference:System.Windows.Forms.dll",
+            "/reference:System.Drawing.dll",
+            str(ROOT / "desktop/Launcher.cs"),
+        ],
+        check=True,
+    )
     with zipfile.ZipFile(DIST / "source.zip", "w", zipfile.ZIP_DEFLATED) as source:
         for name in source_files:
             source.write(ROOT / name, name)
@@ -120,12 +142,41 @@ def main():
             if not file.is_file() or "__pycache__" in file.parts:
                 continue
             relative = file.relative_to(DIST)
-            if relative.name == ".env" or (
-                "db" in relative.parts and relative.name != "initial-library.json"
+            if (
+                relative.name == ".env"
+                or "db" in relative.parts
+                or "staticfiles" in relative.parts
             ):
                 continue
             package.write(file, Path("ACGLib") / relative)
     print(f"Package: {target} ({target.stat().st_size / 1024 / 1024:.1f} MiB)")
+    artifacts = [target]
+    if args.installer:
+        compiler = (
+            args.iscc or shutil.which("iscc") or BUILD / "tools/InnoSetup/ISCC.exe"
+        )
+        if not Path(compiler).exists():
+            raise RuntimeError("Install Inno Setup and pass --iscc path/to/ISCC.exe")
+        version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
+            "project"
+        ]["version"]
+        subprocess.run(
+            [
+                str(compiler),
+                f"/DAppVersion={version}",
+                f"/DPackageRoot={DIST}",
+                str(ROOT / "desktop/installer.iss"),
+            ],
+            check=True,
+        )
+        artifacts.append(ROOT / "dist" / f"ACGLib-{version}-Windows-Setup.exe")
+    (ROOT / "dist/SHA256SUMS.txt").write_text(
+        "".join(
+            f"{hashlib.sha256(file.read_bytes()).hexdigest()}  {file.name}\n"
+            for file in artifacts
+        ),
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

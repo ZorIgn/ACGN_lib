@@ -1,6 +1,6 @@
 [project]
 name = "acglib"
-version = "0.3.0"
+version = "0.4.0"
 description = "A private ACGN library for desktop and phone browsers."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -9,7 +9,7 @@
 </p>
 {% if items %}
 <nav class="recommendation-pagination" data-recommend-current="{{ recommend_page.number }}" aria-label="推荐分页">
-  <span>共 {{ recommend_page.paginator.count }} 部 · 第 {{ recommend_page.number }} / {{ recommend_page.paginator.num_pages }} 页</span>
+  <span data-recommend-counter>共 {{ recommend_page.paginator.count }} 部 · 第 {{ recommend_page.number }} / {{ recommend_page.paginator.num_pages }} 页</span>
   <div>
     <button type="button" class="page-nav-btn" data-recommend-page="{{ recommend_page.number|add:'-1' }}" {% if not recommend_page.has_previous %}disabled{% endif %}>上一页</button>
     <button type="button" class="page-nav-btn" data-recommend-page="{{ recommend_page.number|add:'1' }}" {% if not recommend_page.has_next %}disabled{% endif %}>下一页</button>
@@ -18,7 +18,7 @@
 {% endif %}
 <div class="recommendation-grid">
   {% for item in items %}
-  <article class="recommendation-card">
+  <article class="recommendation-card" {% if forloop.counter0 < recommend_page.start_index|add:'-1' or forloop.counter > recommend_page.end_index %}hidden{% endif %}>
     <div class="recommendation-cover cover" data-title="{{ item.title }}"><img src="{{ item.image }}" alt="" loading="lazy"></div>
     <div class="recommendation-body">
       <div class="recommendation-meta"><span>{{ item.source_label }}</span>{% if item.community_score %}<span>★ {{ item.community_score|floatformat:1 }}</span>{% endif %}</div>
@@ -28,7 +28,7 @@
         {% csrf_token %}
         <input type="hidden" name="candidate" value="{{ item.token }}">
         <input type="hidden" name="next" value="{{ return_url }}" data-return-field>
-        <button type="submit" class="recommendation-action" aria-label="将{{ item.title }}加入清单">加入清单 <span aria-hidden="true">＋</span></button>
+        <button type="submit" class="recommendation-action" data-quick-open aria-label="评分并将{{ item.title }}加入书架">评分 / 加入 <span aria-hidden="true">＋</span></button>
       </form>
     </div>
   </article>

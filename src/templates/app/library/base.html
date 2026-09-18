@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="color-scheme" content="dark">
+  <link rel="icon" href="{% static 'img/acglib.ico' %}" sizes="any">
   <title>{% block title %}我的书架{% endblock %} · ACGLib</title>
   <link rel="stylesheet" href="{% static 'css/library.css' %}">
   <script src="{% static 'js/library.js' %}" defer></script>
@@ -16,12 +17,7 @@
     <div class="sidebar-header">
       <a class="sidebar-brand" href="{% url 'library' %}">
         <div class="brand-icon-box" aria-hidden="true">
-          <svg class="brand-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
-            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
-            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
-            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
-          </svg>
+          <img class="app-brand-image" src="{% static 'img/acglib.png' %}" alt="">
         </div>
         <div class="brand-text-block">
           <span class="brand-title">ACGLib<span class="brand-period">.</span></span>
@@ -73,12 +69,7 @@
   <header class="mobile-topbar" aria-label="移动端顶部栏">
     <a class="mobile-brand" href="{% url 'library' %}">
       <div class="brand-icon-box mobile-brand-icon" aria-hidden="true">
-        <svg class="brand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-        </svg>
+        <img class="app-brand-image" src="{% static 'img/acglib.png' %}" alt="">
       </div>
       <div class="mobile-brand-meta">
         <span class="brand-title">ACGLib<span class="brand-period">.</span></span>

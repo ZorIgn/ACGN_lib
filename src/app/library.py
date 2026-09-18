@@ -523,6 +523,7 @@ def capture(request):
         "app/library/capture.html",
         page_context(
             form=form,
+            quick_form=PersonalRecordForm(prefix="quick"),
             drafts=LibraryImportDraft.objects.filter(user=request.user).order_by(
                 "-updated_at"
             ),

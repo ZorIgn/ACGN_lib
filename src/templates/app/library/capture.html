@@ -82,6 +82,19 @@
     <button type="button" class="btn-action-secondary" data-recommend-retry hidden>重新加载推荐</button>
     <noscript><p class="recommendation-empty">开启 JavaScript 后可浏览推荐，作品搜索和批量添加仍可使用。</p></noscript>
   </section>
+  <dialog class="quick-add-dialog" data-quick-dialog aria-labelledby="quick-title">
+    <form method="post" action="{% url 'library_recommendation_choose' %}" data-quick-form>
+      {% csrf_token %}
+      <input type="hidden" name="action" value="quick_add">
+      <input type="hidden" name="candidate">
+      <button class="quick-close" type="button" data-quick-close aria-label="关闭">×</button>
+      <div class="quick-work"><img data-quick-image alt=""><div><p class="quick-eyebrow">加入我的书架</p><h2 id="quick-title"></h2></div></div>
+      <div class="quick-rating"><label>{{ quick_form.score.label }}</label>{{ quick_form.score }}</div>
+      <p class="quick-status">{{ quick_form.status.label_tag }}{{ quick_form.status }}{{ quick_form.status_manual }}</p>
+      <p class="quick-feedback" data-quick-feedback role="status"></p>
+      <button type="submit" class="btn-action-primary">加入书架</button>
+    </form>
+  </dialog>
   {% if drafts %}
   <section class="import-drafts" aria-label="导入草稿">
     <h2>导入草稿</h2>

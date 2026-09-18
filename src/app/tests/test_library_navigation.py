@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 
 from app.models import Book, LibraryImportDraft
@@ -12,6 +13,7 @@ from app.tests.test_recommendations import document
 
 class NavigationTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = get_user_model().objects.create_user(username="navigation-owner")
         self.client.force_login(self.user)
         seed = patch("app.library.seed_draft")
@@ -49,8 +51,9 @@ class NavigationTests(TestCase):
                 "/library/recommendations/", {"type": "book", "page": number}
             )
             self.assertEqual(response.context["recommend_page"].number, number)
-            seen.extend(item["media_id"] for item in response.context["items"])
-            self.assertEqual(len(response.context["items"]), 2 if number == 5 else 12)
+            seen.extend(item["media_id"] for item in response.context["recommend_page"])
+            self.assertEqual(len(response.context["recommend_page"]), 2 if number == 5 else 12)
+            self.assertEqual(len(response.context["items"]), 50)
         self.assertEqual(seen, [str(index) for index in range(1, 51)])
         response = self.client.get("/library/recommendations/", {"page": 999})
         self.assertEqual(response.context["recommend_page"].number, 5)

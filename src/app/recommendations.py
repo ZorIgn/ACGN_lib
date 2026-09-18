@@ -1,17 +1,22 @@
 """Lightweight content recommendations with explicit feedback and public heat."""
 
+import hashlib
+import json
 import math
 import re
+import threading
 import unicodedata
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from django.apps import apps
+from django.core.cache import cache
 
 from app.providers import discovery
 
 KINDS = {"book", "manga", "anime", "tv", "movie", "game"}
+_batch_locks = [threading.Lock() for _ in range(16)]
 GENERIC_TAGS = {
     "小说",
     "漫画",
@@ -197,7 +202,7 @@ def rank(candidates, seeds, owned, *, personal=True, limit=50):
     return result, meaningful
 
 
-def recommend(user, kind, mode="personal"):
+def recommend(user, kind, mode="personal", *, limit=50):
     """Build recommendations from the current owner's records and public pools."""
     records = list(
         apps.get_model("app", kind).objects.filter(user=user).select_related("item")
@@ -270,10 +275,70 @@ def recommend(user, kind, mode="personal"):
         for rows in executor.map(safely, extra):
             if rows:
                 candidates.extend(rows)
-    items, personalized = rank(candidates, seeds, records, personal=mode == "personal")
+    items, personalized = rank(
+        candidates, seeds, records, personal=mode == "personal", limit=limit
+    )
     return {
         "items": items,
         "personalized": personalized,
         "unavailable": not catalogs,
         "partial": any(value is None for value in loaded),
     }
+
+
+def batch(user, kind, mode="personal"):
+    """Reuse ranked pages until the owner's feedback or the public catalog expires."""
+    key = f"recommendations:{user.pk}:{kind}:{mode}"
+    with _batch_locks[hash(key) % len(_batch_locks)]:
+        rows = list(
+            apps.get_model("app", kind)
+            .objects.filter(user=user)
+            .order_by("pk")
+            .values_list(
+                "pk",
+                "score",
+                "status",
+                "progress",
+                "item__source",
+                "item__media_id",
+                "item__title",
+            )
+        )
+        revision = hashlib.sha256(
+            json.dumps(rows, default=str, ensure_ascii=False).encode()
+        ).hexdigest()
+        previous = cache.get(key)
+        if previous and previous["revision"] == revision:
+            return previous["result"]
+        result = recommend(user, kind, mode, limit=80)
+        if result.get("unavailable"):
+            return result
+        items = result["items"]
+        if previous and all(row in rows for row in previous["records"]):
+            owned = {(row[4], str(row[5])) for row in rows}
+            names = {normalize(row[6]) for row in rows}
+
+            def identity(item):
+                return item["source"], str(item["media_id"])
+
+            survivors = [
+                item
+                for item in previous["result"]["items"]
+                if identity(item) not in owned and normalize(item["title"]) not in names
+            ]
+            kept = {identity(item) for item in survivors}
+            titles = {normalize(item["title"]) for item in survivors}
+            replacements = iter(
+                item
+                for item in items
+                if identity(item) not in kept and normalize(item["title"]) not in titles
+            )
+            items = [
+                item if identity(item) in kept else next(replacements, None)
+                for item in previous["result"]["items"]
+            ]
+            items = [item for item in items if item is not None]
+            items.extend(list(replacements)[: 50 - len(items)])
+        result = {**result, "items": items[:50]}
+        cache.set(key, {"revision": revision, "records": rows, "result": result}, 3600)
+        return result

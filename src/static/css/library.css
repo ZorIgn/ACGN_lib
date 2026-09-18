@@ -1117,6 +1117,32 @@ input[type="checkbox"] {
 
 [hidden] { display: none !important; }
 
+.quick-add-dialog {
+  width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 28px;
+  color: var(--text-primary, #edeaf4);
+  background: rgba(24, 25, 36, .97);
+  border: 1px solid rgba(181, 172, 218, .24);
+  border-radius: 18px;
+  box-shadow: 0 28px 100px rgba(0, 0, 0, .55);
+}
+.quick-add-dialog::backdrop { background: rgba(5, 7, 13, .65); backdrop-filter: blur(5px); }
+.quick-add-dialog form { display: block; margin: 0; }
+.quick-close { position: absolute; top: 10px; right: 12px; background: none; border: 0; font-size: 26px; color: #a5a2b5; width: 36px; height: 36px; cursor: pointer; }
+.quick-work { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; padding-right: 12px; }
+.quick-work img { width: 68px; height: 98px; object-fit: cover; border-radius: 5px; }
+.quick-eyebrow { color: #9e99b2; font-size: 12px; margin: 0 0 6px; }
+.quick-work h2 { font-size: 19px; line-height: 1.5; margin: 0; }
+.quick-rating > label { display: block; font-size: 12px; color: #aaa5ba; margin-bottom: 10px; }
+.quick-rating .star-rating-widget { display: flex; flex-wrap: wrap; gap: 10px; }
+.quick-status { display: grid; gap: 8px; margin: 22px 0 0; }
+.quick-status label { color: #aaa5ba; font-size: 12px; }
+.quick-feedback { min-height: 18px; font-size: 13px; color: #c3b3f4; margin: 12px 0; }
+.quick-add-dialog [type=submit] { width: 100%; justify-content: center; min-height: 42px; }
+.app-brand-image { width: 34px; height: 34px; object-fit: contain; }
+@media (max-width: 480px) { .quick-add-dialog { padding: 24px 20px; } }
+
 :focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
 
 .header-actions > .btn-subtle-link { background: transparent; border-color: transparent; }

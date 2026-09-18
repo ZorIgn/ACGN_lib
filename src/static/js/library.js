@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scoreMax = widget.querySelector('.rating-val-max');
     const btnZero = widget.querySelector('[data-action="zero"]');
     const btnClear = widget.querySelector('[data-action="clear"]');
-    const recordFields = widget.closest('.personal-fields, .detail-form');
+    const recordFields = widget.closest('.personal-fields, .detail-form, [data-quick-form]');
     const status = recordFields?.querySelector('select[name$="status"]');
     const statusManual = recordFields?.querySelector('input[name$="status_manual"]');
     status?.addEventListener('change', () => {
@@ -283,6 +283,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let mode = params.get('mode') === 'popular' ? 'popular' : 'personal';
     let pageNumber = Math.max(1, Number(params.get('recommend_page')) || 1);
     let controller;
+    const batches = new Map();
+    const batchKey = () => `${kind.value}:${mode}`;
+    const dialog = document.querySelector('[data-quick-dialog]');
+    const quickForm = dialog.querySelector('form');
+    const quickFeedback = dialog.querySelector('[data-quick-feedback]');
+    let quickCard;
+    let adding = false;
     const updateTabs = () => discovery.querySelectorAll('[data-recommend-mode]').forEach(tab => {
       const active = tab.dataset.recommendMode === mode;
       tab.classList.toggle('is-active', active);
@@ -295,32 +302,59 @@ document.addEventListener('DOMContentLoaded', () => {
       url.searchParams.set('recommend_page', pageNumber);
       if (url.href !== location.href) history[push ? 'pushState' : 'replaceState'](null, '', url);
     };
-    const loadRecommendations = async (push = false) => {
+    const renderPage = () => {
+      const cards = [...results.querySelectorAll('.recommendation-card')];
+      const pages = Math.max(1, Math.ceil(cards.length / 12));
+      pageNumber = Math.min(pages, Math.max(1, Math.trunc(pageNumber) || 1));
+      cards.forEach((card, index) => { card.hidden = index < (pageNumber - 1) * 12 || index >= pageNumber * 12; });
+      const pager = results.querySelector('[data-recommend-current]');
+      if (pager) {
+        pager.dataset.recommendCurrent = pageNumber;
+        pager.querySelector('[data-recommend-counter]').textContent = `共 ${cards.length} 部 · 第 ${pageNumber} / ${pages} 页`;
+        const buttons = pager.querySelectorAll('[data-recommend-page]');
+        buttons[0].dataset.recommendPage = pageNumber - 1;
+        buttons[0].disabled = pageNumber === 1;
+        buttons[1].dataset.recommendPage = pageNumber + 1;
+        buttons[1].disabled = pageNumber === pages;
+      }
+      updateLocation(false);
+    };
+    const showBatch = html => {
+      results.innerHTML = html;
+      renderPage();
+      initCovers(results);
+      results.querySelectorAll('img').forEach(img => { img.loading = 'eager'; });
+      retry.hidden = !results.querySelector('[data-recommend-unavailable]');
+    };
+    const loadRecommendations = async (push = false, refresh = false) => {
       controller?.abort();
       const request = new AbortController();
       controller = request;
+      const key = batchKey();
+      updateTabs();
+      updateLocation(push);
+      if (!refresh && batches.has(key)) {
+        showBatch(batches.get(key));
+        results.removeAttribute('aria-busy');
+        return;
+      }
       results.setAttribute('aria-busy', 'true');
-      results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '正在寻找作品…' }));
+      if (!refresh) results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '正在准备推荐，完成后可直接翻页…' }));
       retry.hidden = true;
       const url = new URL(discovery.dataset.url, location.origin);
       url.searchParams.set('type', kind.value);
       url.searchParams.set('mode', mode);
       url.searchParams.set('page', pageNumber);
-      updateTabs();
-      updateLocation(push);
       try {
         const response = await fetch(url, { signal: request.signal });
         if (!response.ok || response.redirected) throw new Error('Recommendations unavailable');
         const html = await response.text();
         if (request !== controller || request.signal.aborted) return;
-        results.innerHTML = html;
-        pageNumber = Number(results.querySelector('[data-recommend-current]')?.dataset.recommendCurrent) || pageNumber;
-        updateLocation(false);
-        initCovers(results);
-        retry.hidden = !results.querySelector('[data-recommend-unavailable]');
+        showBatch(html);
+        if (!results.querySelector('[data-recommend-unavailable]')) batches.set(key, html);
       } catch (error) {
         if (request !== controller || error.name === 'AbortError') return;
-        results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '推荐暂时无法加载。可以重试，或继续搜索作品。' }));
+        if (!refresh) results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '推荐暂时无法加载。可以重试，或继续搜索作品。' }));
         retry.hidden = false;
       } finally {
         if (request === controller) {
@@ -341,7 +375,50 @@ document.addEventListener('DOMContentLoaded', () => {
       const button = event.target.closest('[data-recommend-page]');
       if (!button || button.disabled) return;
       pageNumber = Number(button.dataset.recommendPage);
-      loadRecommendations(true);
+      updateLocation(true);
+      renderPage();
+    });
+    results.addEventListener('submit', event => {
+      const form = event.target.closest('.recommendation-body form');
+      if (!form) return;
+      event.preventDefault();
+      quickCard = form.closest('.recommendation-card');
+      quickForm.reset();
+      quickFeedback.textContent = '';
+      quickForm.elements.candidate.value = form.elements.candidate.value;
+      dialog.querySelector('#quick-title').textContent = quickCard.querySelector('h3').textContent;
+      dialog.querySelector('[data-quick-image]').src = quickCard.querySelector('img').src;
+      dialog.querySelector('[data-action=clear]').click();
+      dialog.showModal();
+    });
+    dialog.querySelector('[data-quick-close]').addEventListener('click', () => { if (!adding) dialog.close(); });
+    dialog.addEventListener('cancel', event => { if (adding) event.preventDefault(); });
+    dialog.addEventListener('click', event => { if (event.target === dialog && !adding) dialog.close(); });
+    quickForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (adding) return;
+      adding = true;
+      const button = quickForm.querySelector('[type=submit]');
+      button.disabled = true;
+      quickFeedback.textContent = '正在加入…';
+      try {
+        const response = await fetch(quickForm.getAttribute('action'), {method: 'POST', body: new FormData(quickForm)});
+        if (response.redirected) throw new Error('登录已过期，请刷新页面后重试。');
+        if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('加入失败，请刷新推荐后重试。');
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || '加入失败，请重试。');
+        const added = quickCard.querySelector('[data-quick-open]');
+        added.textContent = '已加入书架';
+        added.disabled = true;
+        dialog.close();
+        batches.clear();
+        loadRecommendations(false, true);
+      } catch (error) {
+        quickFeedback.textContent = error instanceof TypeError ? '连接失败，请重试。' : error.message;
+      } finally {
+        adding = false;
+        button.disabled = false;
+      }
     });
     window.addEventListener('popstate', () => {
       const params = new URL(location.href).searchParams;
@@ -350,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
       pageNumber = Number(params.get('recommend_page')) || 1;
       loadRecommendations();
     });
-    retry.addEventListener('click', () => loadRecommendations());
+    retry.addEventListener('click', () => loadRecommendations(false, true));
     loadRecommendations();
   } else {
     restoreOrigin();
