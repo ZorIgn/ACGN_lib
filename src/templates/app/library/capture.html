@@ -52,11 +52,11 @@
         <button type="submit" class="btn-action-primary">搜索作品</button>
       </div>
     </form>
-    <div class="capture-guide-tips">
-      <h3 class="tips-heading">
+    <details class="capture-guide-tips">
+      <summary class="tips-heading">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        <span>输入提示</span>
-      </h3>
+        <span>批量添加与链接用法</span>
+      </summary>
       <ul class="tips-list">
         <li>每行一部作品，最多 500 部，分批检索并自动保存草稿。</li>
         <li>混合类型可写成 <code>小说 | 仙逆 | 很喜欢</code>，最后一项记录可省略。</li>
@@ -64,8 +64,25 @@
         <li>支持粘贴 TMDB 电影或剧集条目链接。</li>
         <li>其他第三方在线阅读/观看链接，将在检索后自动保存在“观看 / 阅读链接”字段中。</li>
       </ul>
-    </div>
+    </details>
   </div>
+  <section class="discovery-section" data-discovery data-url="{% url 'library_recommendations' %}" aria-labelledby="discovery-title">
+    <div class="discovery-heading">
+      <div>
+        <h2 class="discovery-title" id="discovery-title">发现下一部喜欢的作品</h2>
+        <p class="discovery-caption">从你的收藏出发，也看看值得留意的热门。</p>
+      </div>
+      <div class="discovery-tabs" role="group" aria-label="推荐方式">
+        <button type="button" class="discovery-tab is-active" data-recommend-mode="personal" aria-pressed="true">为你推荐</button>
+        <button type="button" class="discovery-tab" data-recommend-mode="popular" aria-pressed="false">热门作品</button>
+      </div>
+    </div>
+    <div data-recommendations aria-live="polite" aria-busy="true">
+      <p class="recommendation-empty">正在寻找作品…</p>
+    </div>
+    <button type="button" class="btn-action-secondary" data-recommend-retry hidden>重新加载推荐</button>
+    <noscript><p class="recommendation-empty">开启 JavaScript 后可浏览推荐，作品搜索和批量添加仍可使用。</p></noscript>
+  </section>
   {% if drafts %}
   <section class="import-drafts" aria-label="导入草稿">
     <h2>导入草稿</h2>

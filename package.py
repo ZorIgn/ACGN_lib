@@ -85,12 +85,14 @@ def main():
         "allow-lan.ps1",
         "使用说明.md",
         "README.md",
+        "docs/implementation.md",
         "LICENSE",
         "pyproject.toml",
         "uv.lock",
         ".env.example",
     ]
     for name in source_files:
+        (DIST / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, DIST / name)
     shutil.copytree(
         ROOT / "src",
@@ -107,7 +109,6 @@ def main():
     with zipfile.ZipFile(DIST / "source.zip", "w", zipfile.ZIP_DEFLATED) as source:
         for name in source_files:
             source.write(ROOT / name, name)
-        source.write(ROOT / "docs" / "implementation.md", "docs/implementation.md")
         for file in (ROOT / "src").rglob("*"):
             if file.is_file() and not {"db", "staticfiles", "__pycache__"}.intersection(
                 file.relative_to(ROOT / "src").parts

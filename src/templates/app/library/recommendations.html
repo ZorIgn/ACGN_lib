@@ -1,0 +1,27 @@
+{% if unavailable %}
+<p class="recommendation-empty" data-recommend-unavailable>暂时无法获取推荐资料，稍后可重试。你仍可搜索和添加作品。</p>
+{% else %}
+<p class="discovery-caption">
+  {% if mode == 'popular' %}{{ kind_label }}公开榜单与社区热门 · 已排除识别到的书架收藏
+  {% elif personalized %}结合你的收藏、评分与公开热度，为你挑选这些{{ kind_label }}。
+  {% else %}这个类型的偏好资料还不够，先看看热门{{ kind_label }}；收藏和评分后会更贴近你的口味。{% endif %}
+  {% if partial %}部分资料源暂时不可用，当前展示已获取的结果。{% endif %}
+</p>
+<div class="recommendation-grid">
+  {% for item in items %}
+  <article class="recommendation-card">
+    <div class="recommendation-cover cover" data-title="{{ item.title }}"><img src="{{ item.image }}" alt="" loading="lazy"></div>
+    <div class="recommendation-body">
+      <div class="recommendation-meta"><span>{{ item.source_label }}</span>{% if item.community_score %}<span>★ {{ item.community_score|floatformat:1 }}</span>{% endif %}</div>
+      <h3 class="recommendation-title">{{ item.title }}</h3>
+      <p class="recommendation-reason">{{ item.reason }}</p>
+      <form method="post" action="{% url 'library_recommendation_choose' %}" data-busy="正在打开…">
+        {% csrf_token %}
+        <input type="hidden" name="candidate" value="{{ item.token }}">
+        <button type="submit" class="recommendation-action" aria-label="将{{ item.title }}加入清单">加入清单 <span aria-hidden="true">＋</span></button>
+      </form>
+    </div>
+  </article>
+  {% empty %}<p class="recommendation-empty">这批候选已在书架中，或暂时没有可推荐的作品。可以切换类型或直接搜索名称。</p>{% endfor %}
+</div>
+{% endif %}

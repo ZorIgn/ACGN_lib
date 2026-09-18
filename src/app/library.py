@@ -108,8 +108,8 @@ class CaptureForm(forms.Form):
         max_length=10000,
         widget=forms.Textarea(
             attrs={
-                "rows": 7,
-                "placeholder": "每行一部作品\n道诡异仙\n小说 | 仙逆 | 很喜欢\n游戏 | 哈迪斯",
+                "rows": 2,
+                "placeholder": "输入作品名称或链接；批量添加时，每行一部",
             }
         ),
     )

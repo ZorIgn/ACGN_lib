@@ -202,14 +202,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (snapshot() !== acknowledged) save().catch(() => {});
   }
 
-  document.querySelectorAll('form[data-busy]').forEach(form => {
-    form.addEventListener('submit', () => {
-      const button = form.querySelector('button[type=submit]') || form.querySelector('button:not([type=button])');
-      if (button && form.dataset.busy) {
-        button.disabled = true;
-        button.textContent = form.dataset.busy;
-      }
-    });
+  document.addEventListener('submit', event => {
+    const form = event.target.closest('form[data-busy]');
+    if (!form || event.defaultPrevented) return;
+    const button = event.submitter || form.querySelector('button[type=submit]') || form.querySelector('button:not([type=button])');
+    if (button && form.dataset.busy) {
+      button.disabled = true;
+      button.textContent = form.dataset.busy;
+    }
   });
 
   const hideBrokenImage = img => {
@@ -225,6 +225,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   initCovers(document);
+
+  const discovery = document.querySelector('[data-discovery]');
+  if (discovery) {
+    const results = discovery.querySelector('[data-recommendations]');
+    const retry = discovery.querySelector('[data-recommend-retry]');
+    const kind = document.querySelector('.capture-form [name="media_type"]');
+    let mode = 'personal';
+    let controller;
+    const loadRecommendations = async () => {
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      results.setAttribute('aria-busy', 'true');
+      results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '正在寻找作品…' }));
+      retry.hidden = true;
+      const url = new URL(discovery.dataset.url, location.origin);
+      url.searchParams.set('type', kind.value);
+      url.searchParams.set('mode', mode);
+      try {
+        const response = await fetch(url, { signal: request.signal });
+        if (!response.ok || response.redirected) throw new Error('Recommendations unavailable');
+        const html = await response.text();
+        if (request !== controller || request.signal.aborted) return;
+        results.innerHTML = html;
+        initCovers(results);
+        retry.hidden = !results.querySelector('[data-recommend-unavailable]');
+      } catch (error) {
+        if (request !== controller || error.name === 'AbortError') return;
+        results.replaceChildren(Object.assign(document.createElement('p'), { className: 'recommendation-empty', textContent: '推荐暂时无法加载。可以重试，或继续搜索作品。' }));
+        retry.hidden = false;
+      } finally {
+        if (request === controller) results.removeAttribute('aria-busy');
+      }
+    };
+    kind.addEventListener('change', loadRecommendations);
+    discovery.querySelectorAll('[data-recommend-mode]').forEach(button => {
+      button.addEventListener('click', () => {
+        mode = button.dataset.recommendMode;
+        discovery.querySelectorAll('[data-recommend-mode]').forEach(tab => {
+          const active = tab === button;
+          tab.classList.toggle('is-active', active);
+          tab.setAttribute('aria-pressed', String(active));
+        });
+        loadRecommendations();
+      });
+    });
+    retry.addEventListener('click', loadRecommendations);
+    loadRecommendations();
+  }
 
   const filters = document.querySelector('[data-shelf-filter]');
   if (filters) {
