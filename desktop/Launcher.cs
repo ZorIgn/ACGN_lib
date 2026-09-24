@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("ACGLib")]
 [assembly: System.Reflection.AssemblyProduct("ACGLib 私人书架")]
-[assembly: System.Reflection.AssemblyVersion("0.4.0.0")]
+[assembly: System.Reflection.AssemblyVersion("0.4.1.0")]
 
 internal static class Launcher
 {

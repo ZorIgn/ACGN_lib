@@ -289,20 +289,15 @@ def recommend(user, kind, mode="personal", *, limit=50):
 def batch(user, kind, mode="personal"):
     """Reuse ranked pages until the owner's feedback or the public catalog expires."""
     key = f"recommendations:{user.pk}:{kind}:{mode}"
+    fields = ["pk", "score", "status", "item__source", "item__media_id", "item__title"]
+    if kind == "game":
+        fields.append("progress")
     with _batch_locks[hash(key) % len(_batch_locks)]:
         rows = list(
             apps.get_model("app", kind)
             .objects.filter(user=user)
             .order_by("pk")
-            .values_list(
-                "pk",
-                "score",
-                "status",
-                "progress",
-                "item__source",
-                "item__media_id",
-                "item__title",
-            )
+            .values_list(*fields)
         )
         revision = hashlib.sha256(
             json.dumps(rows, default=str, ensure_ascii=False).encode()
@@ -315,8 +310,8 @@ def batch(user, kind, mode="personal"):
             return result
         items = result["items"]
         if previous and all(row in rows for row in previous["records"]):
-            owned = {(row[4], str(row[5])) for row in rows}
-            names = {normalize(row[6]) for row in rows}
+            owned = {(row[3], str(row[4])) for row in rows}
+            names = {normalize(row[5]) for row in rows}
 
             def identity(item):
                 return item["source"], str(item["media_id"])

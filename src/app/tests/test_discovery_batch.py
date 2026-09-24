@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from bs4 import BeautifulSoup
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.cache import cache
@@ -12,6 +13,97 @@ from django.test import TestCase
 from app import library_discovery, recommendations
 from app.models import Book, Item, LibraryImportDraft
 from app.tests.test_recommendations import document
+
+
+class MediaDiscoveryTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user(username="media-owner")
+        self.client.force_login(self.user)
+
+    def catalog(self, kind, *args):
+        return [
+            {
+                **document(i, f"{kind} 候选 {i}", ["冒险"]),
+                "media_type": kind,
+                "source": "tmdb" if kind == "movie" else "bangumi",
+            }
+            for i in range(60)
+        ]
+
+    def test_each_media_type_recommends_and_accepts_quick_ratings(self):
+        with (
+            patch("app.providers.discovery.bangumi_catalog", side_effect=self.catalog),
+            patch("app.providers.discovery.movie_catalog", side_effect=self.catalog),
+            patch("app.providers.discovery.novel_catalog", return_value=[]),
+            patch(
+                "app.providers.discovery.describe",
+                side_effect=lambda source, kind, media_id, title: {
+                    **self.catalog(kind)[int(media_id)],
+                    "title": title,
+                },
+            ),
+        ):
+            for kind in sorted(recommendations.KINDS):
+                with self.subTest(kind=kind):
+                    model = apps.get_model("app", kind)
+                    candidate = self.catalog(kind)[0]
+                    item = Item.objects.create(
+                        source=candidate["source"],
+                        media_type=kind,
+                        media_id="0",
+                        title=candidate["title"],
+                        image=candidate["image"],
+                    )
+                    models.Model.save(
+                        model(user=self.user, item=item, score=9, status="Completed")
+                    )
+                    for mode in ["personal", "popular"]:
+                        response = self.client.get(
+                            "/library/recommendations/", {"type": kind, "mode": mode}
+                        )
+                        self.assertEqual(response.status_code, 200)
+                        soup = BeautifulSoup(response.content, "html.parser")
+                        self.assertEqual(len(soup.select(".recommendation-card")), 50)
+                        self.assertNotIn(
+                            candidate["title"],
+                            [
+                                card.text
+                                for card in soup.select(".recommendation-title")
+                            ],
+                        )
+                    token = soup.select_one('input[name="candidate"]')["value"]
+                    response = self.client.post(
+                        "/library/recommendations/choose/",
+                        {"action": "quick_add", "candidate": token, "quick-score": "9"},
+                    )
+                    self.assertTrue(response.json()["created"])
+                    added = (
+                        model.objects.filter(user=self.user).exclude(item=item).get()
+                    )
+                    self.assertEqual(added.score, 9)
+                    self.assertEqual(added.status, "Completed")
+                    after = recommendations.batch(self.user, kind, "popular")
+                    self.assertEqual(len(after["items"]), 50)
+                    self.assertNotIn(
+                        added.item.media_id, [row["media_id"] for row in after["items"]]
+                    )
+
+    def test_game_playtime_updates_invalidate_recommendations(self):
+        item = Item.objects.create(
+            source="steam", media_type="game", media_id="1", title="游戏"
+        )
+        model = apps.get_model("app", "game")
+        models.Model.save(model(user=self.user, item=item, progress=10))
+        with patch.object(
+            recommendations, "recommend", return_value={"items": []}
+        ) as ranker:
+            recommendations.batch(self.user, "game")
+            recommendations.batch(self.user, "game")
+            self.assertEqual(ranker.call_count, 1)
+            model.objects.filter(user=self.user).update(progress=20)
+            recommendations.batch(self.user, "game")
+            self.assertEqual(ranker.call_count, 2)
 
 
 class BatchTests(TestCase):
