@@ -13,6 +13,8 @@
     </div>
     <div class="header-actions">
       {% if draft_count %}<a class="btn-subtle-link" href="{% url 'library_capture' %}">导入清单 <span>{{ draft_count }}</span></a>{% endif %}
+      <a class="btn-subtle-link" href="{% url 'library_transfer' %}">导入 / 导出</a>
+      <button type="button" class="btn-action-secondary" data-bulk-toggle hidden>批量整理</button>
       <a class="btn-action-primary" href="{% url 'library_capture' %}">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -88,10 +90,28 @@
     </div>
   </form>
   <p class="filter-feedback" data-filter-feedback role="status" hidden></p>
+  <p class="bulk-feedback" data-bulk-feedback role="status" hidden></p>
+  <form method="post" action="{% url 'library_bulk' %}" class="bulk-toolbar" data-bulk-form hidden>
+    {% csrf_token %}<input type="hidden" name="selection" value="[]">
+    <div class="bulk-selection">
+      <strong data-selection-count>已选 0 部</strong><span>跨页保留</span>
+      <button type="button" class="btn-subtle-link" data-select-page>全选本页</button>
+      <button type="button" class="btn-subtle-link" data-clear-selection>清空选择</button>
+    </div>
+    <fieldset class="bulk-actions">
+      <legend class="sr-only">批量修改</legend>
+      <label>操作<select name="action"><option value="status">修改状态</option><option value="folder_add">加入文件夹</option><option value="folder_remove">移出文件夹</option></select></label>
+      <label data-bulk-status>状态<select name="status"><option value="">未设置</option>{% for value,label in states.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+      <label data-bulk-folder hidden>文件夹<select name="folder" disabled><option value="">选择文件夹</option>{% for saved in folders %}<option value="{{ saved.pk }}">{{ saved.name }}</option>{% endfor %}</select></label>
+      <button type="submit" class="btn-action-primary">应用到已选作品</button>
+    </fieldset>
+  </form>
 
   <div id="shelf-results" aria-live="polite">
   <div class="shelf-grid">
     {% for entry in page %}
+    <article class="shelf-entry">
+    <label class="shelf-select" hidden><input type="checkbox" data-select-record value="{{ entry.kind }}:{{ entry.record.pk }}" aria-label="选择 {{ entry.record.item.title }}"><span class="sr-only">选择 {{ entry.record.item.title }}</span></label>
     <a class="work-card" data-record-link href="{% url 'library_detail' entry.kind entry.record.pk %}?next={{ request.get_full_path|urlencode }}">
       <div class="cover media-cover" data-title="{{ entry.record.item.title }}">
         <img src="{{ entry.record.item.image }}" alt="" loading="lazy">
@@ -115,6 +135,9 @@
         </div>
       </div>
     </a>
+    {% if entry.position %}<p class="work-position" title="{{ entry.position }}">{{ entry.position }}</p>{% endif %}
+    {% if entry.viewing_url %}<a class="work-resume" href="{{ entry.viewing_url }}" target="_blank" rel="noreferrer">{{ entry.link_label }} <span aria-hidden="true">↗</span></a>{% endif %}
+    </article>
     {% empty %}
     <div class="shelf-empty">
       <div class="empty-glyph" aria-hidden="true">

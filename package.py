@@ -90,6 +90,7 @@ def main():
         "使用说明.md",
         "README.md",
         "docs/implementation.md",
+        "docs/roadmap.md",
         "LICENSE",
         "pyproject.toml",
         "uv.lock",

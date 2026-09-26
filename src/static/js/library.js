@@ -428,6 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
       loadRecommendations();
     });
     retry.addEventListener('click', () => loadRecommendations(false, true));
+    discovery.addEventListener('library:recommendations-changed', () => {
+      batches.clear();
+      loadRecommendations(false, true);
+    });
     loadRecommendations();
   } else {
     restoreOrigin();
@@ -472,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!results || !count) throw new Error('Missing shelf results');
         if (request !== controller || request.signal.aborted) return;
         document.getElementById('shelf-results').replaceWith(results);
+        document.dispatchEvent(new Event('library:shelf-updated'));
         document.getElementById('shelf-count').textContent = count.textContent;
         initCovers(results);
         if (recordHistory && url.href !== location.href) history.pushState(null, '', url);

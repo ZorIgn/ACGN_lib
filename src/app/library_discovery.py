@@ -10,7 +10,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from app import library, recommendations
-from app.models import Item, LibraryImportDraft
+from app.models import Item, LibraryImportDraft, LibraryRecommendationDismissal
 
 TOKEN_SALT = "library-recommendation"
 CANDIDATE_FIELDS = (
@@ -59,21 +59,65 @@ def suggestions(request):
     )
 
 
+def verified_candidate(request):
+    """Read one signed catalog candidate belonging to the current user."""
+    data = signing.loads(
+        request.POST.get("candidate", ""), salt=TOKEN_SALT, max_age=86400
+    )
+    candidate = data["candidate"]
+    if (
+        data["user"] != request.user.pk
+        or not isinstance(candidate, dict)
+        or candidate.get("media_type") not in recommendations.KINDS
+        or candidate.get("source") not in {"bangumi", "webnovel", "tmdb"}
+        or not isinstance(candidate.get("media_id"), str)
+        or not 1 <= len(candidate["media_id"]) <= 100
+        or not isinstance(candidate.get("title"), str)
+        or not 1 <= len(candidate["title"]) <= 500
+    ):
+        raise signing.BadSignature
+    return candidate
+
+
+@login_required
+@require_POST
+def feedback(request):
+    """Persist or undo a user's dismissal of a verified recommendation."""
+    try:
+        candidate = verified_candidate(request)
+    except (signing.BadSignature, KeyError, TypeError):
+        return JsonResponse({"error": "推荐已过期或无效，请刷新后重试。"}, status=400)
+    action = request.POST.get("action")
+    identity = {
+        "user": request.user,
+        "source": candidate["source"],
+        "media_type": candidate["media_type"],
+        "media_id": candidate["media_id"],
+    }
+    if action == "dismiss":
+        LibraryRecommendationDismissal.objects.get_or_create(
+            **identity, defaults={"title": candidate["title"]}
+        )
+    elif action == "undo":
+        LibraryRecommendationDismissal.objects.filter(**identity).delete()
+    else:
+        return JsonResponse({"error": "请选择有效的推荐操作。"}, status=400)
+    return JsonResponse(
+        {
+            "ok": True,
+            "action": action,
+            "title": candidate["title"],
+            "candidate": request.POST["candidate"],
+        }
+    )
+
+
 @login_required
 @require_POST
 def choose(request):
     """Open one verified recommendation in the existing import review."""
     try:
-        data = signing.loads(
-            request.POST.get("candidate", ""), salt=TOKEN_SALT, max_age=86400
-        )
-        candidate = data["candidate"]
-        if (
-            data["user"] != request.user.pk
-            or candidate["media_type"] not in recommendations.KINDS
-            or candidate["source"] not in {"bangumi", "webnovel", "tmdb"}
-        ):
-            raise signing.BadSignature
+        candidate = verified_candidate(request)
     except (signing.BadSignature, KeyError, TypeError):
         return HttpResponseBadRequest("推荐已过期或无效，请返回搜索页刷新后重试。")
     if request.POST.get("action") == "quick_add":

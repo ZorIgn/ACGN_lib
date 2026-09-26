@@ -1,0 +1,52 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}作品数据{% endblock %}
+
+{% block content %}
+<div class="steam-page">
+  <div class="workspace-header">
+    <div class="header-main">
+      <div class="header-title-row"><h1 class="header-title">作品数据</h1></div>
+      <p class="header-subtitle">备份与迁移书架中的作品、个人记录、观看位置和收藏文件夹。</p>
+    </div>
+  </div>
+
+  {% if error %}<div class="message-toast message-error" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="steam-workspace-grid">
+    <section class="steam-panel-card" aria-labelledby="export-title">
+      <div class="panel-card-header"><h2 id="export-title">导出作品</h2></div>
+      <div class="guide-body">
+        <p class="guide-desc-text">JSON 用于备份作品数据和再次导入；CSV 便于用表格软件查看作品记录。</p>
+        <div class="steam-actions">
+          <a class="btn-action-primary" href="{% url 'library_transfer' %}?format=json">导出 JSON</a>
+          <a class="btn-action-secondary" href="{% url 'library_transfer' %}?format=csv">导出 CSV</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="steam-panel-card" aria-labelledby="import-title">
+      <div class="panel-card-header"><h2 id="import-title">导入作品</h2></div>
+      <form class="steam-form" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="steam-fields">
+          <p><label for="library-file">JSON 文件</label><input id="library-file" name="file" type="file" accept=".json,application/json" required></p>
+        </div>
+        <p class="guide-desc-text">选择 ACGLib 导出的 JSON 文件（最大 5 MiB），校验后确认导入。已有作品会保留当前记录；文件内重复作品只导入首次出现的记录。</p>
+        <div class="steam-actions"><button class="btn-action-secondary" type="submit" name="action" value="preview">预览导入</button></div>
+      </form>
+      {% if preview %}
+      <div class="sync-result-box" aria-live="polite">
+        <div class="result-title-row"><strong>导入预览</strong></div>
+        <p class="result-msg">共 {{ preview.total }} 条作品记录：新增 {{ preview.new }} 件，已存在 {{ preview.existing }} 件，文件内重复 {{ preview.duplicates }} 条。新增 {{ preview.new_folders }} 个文件夹。</p>
+        <form method="post" class="steam-actions">
+          {% csrf_token %}
+          <input type="hidden" name="token" value="{{ token }}">
+          <button class="btn-action-primary" type="submit" name="action" value="confirm">确认导入</button>
+        </form>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

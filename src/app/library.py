@@ -100,6 +100,12 @@ class PersonalRecordForm(forms.Form):
 
 
 class DetailRecordForm(PersonalRecordForm):
+    position = forms.CharField(
+        label="阅读 / 观看位置",
+        required=False,
+        max_length=120,
+        widget=forms.TextInput(attrs={"placeholder": "例如：第 320 章、第二季第 4 集"}),
+    )
     folders = forms.ModelMultipleChoiceField(
         label="收藏文件夹",
         queryset=LibraryFolder.objects.none(),
@@ -230,11 +236,29 @@ def shelf(request):
                 }
             )
     items.sort(key=lambda entry: entry["record"].created_at, reverse=True)
+    page = Paginator(items, 36).get_page(request.GET.get("page"))
+    links = {
+        link.item_id: link
+        for link in LibraryLink.objects.filter(
+            user=request.user, item_id__in=[entry["record"].item_id for entry in page]
+        )
+    }
+    for entry in page:
+        link = links.get(entry["record"].item_id)
+        entry["position"] = link.position if link else ""
+        entry["viewing_url"] = link.url if link else ""
+        entry["link_label"] = (
+            "继续阅读"
+            if entry["kind"] in {"book", "manga"}
+            else "打开链接"
+            if entry["kind"] == "game"
+            else "继续观看"
+        )
     return render(
         request,
         "app/library/shelf.html",
         page_context(
-            page=Paginator(items, 36).get_page(request.GET.get("page")),
+            page=page,
             selected_kinds=selected_kinds,
             selected_states=selected_states,
             query=query,
@@ -635,6 +659,7 @@ def detail(request, kind, record_id):
             "status": record.status,
             "notes": record.notes,
             "viewing_url": viewing_url,
+            "position": link.position if link else "",
             "status_manual": record.score is not None and record.status == "",
             "folders": LibraryFolder.objects.filter(
                 user=request.user, items=record.item
@@ -646,11 +671,18 @@ def detail(request, kind, record_id):
             for key in ("score", "status", "notes"):
                 setattr(record, key, form.cleaned_data[key])
             models.Model.save(record, update_fields=["score", "status", "notes"])
-            if form.cleaned_data["viewing_url"] or record.item.source == Sources.STEAM:
+            if (
+                form.cleaned_data["viewing_url"]
+                or form.cleaned_data["position"]
+                or record.item.source == Sources.STEAM
+            ):
                 LibraryLink.objects.update_or_create(
                     user=request.user,
                     item=record.item,
-                    defaults={"url": form.cleaned_data["viewing_url"]},
+                    defaults={
+                        "url": form.cleaned_data["viewing_url"],
+                        "position": form.cleaned_data["position"],
+                    },
                 )
             else:
                 LibraryLink.objects.filter(user=request.user, item=record.item).delete()

@@ -97,10 +97,12 @@ def safely(load):
         return None
 
 
-def rank(candidates, seeds, owned, *, personal=True, limit=50):
+def rank(candidates, seeds, owned, *, dismissed=(), personal=True, limit=50):
     """Blend TF-IDF taste similarity with heat, then diversify the shortlist."""
     owned_ids = {(row.item.source, str(row.item.media_id)) for row in owned}
     owned_names = {normalize(row.item.title) for row in owned}
+    owned_ids.update((row.source, str(row.media_id)) for row in dismissed)
+    owned_names.update(normalize(row.title) for row in dismissed)
     for seed in seeds:
         owned_names.update(
             normalize(seed.get(field, "")) for field in ("title", "original_title")
@@ -276,7 +278,14 @@ def recommend(user, kind, mode="personal", *, limit=50):
             if rows:
                 candidates.extend(rows)
     items, personalized = rank(
-        candidates, seeds, records, personal=mode == "personal", limit=limit
+        candidates,
+        seeds,
+        records,
+        dismissed=apps.get_model(
+            "app", "LibraryRecommendationDismissal"
+        ).objects.filter(user=user, media_type=kind),
+        personal=mode == "personal",
+        limit=limit,
     )
     return {
         "items": items,
@@ -299,8 +308,14 @@ def batch(user, kind, mode="personal"):
             .order_by("pk")
             .values_list(*fields)
         )
+        dismissed = list(
+            apps.get_model("app", "LibraryRecommendationDismissal")
+            .objects.filter(user=user, media_type=kind)
+            .order_by("pk")
+            .values_list("source", "media_id", "title")
+        )
         revision = hashlib.sha256(
-            json.dumps(rows, default=str, ensure_ascii=False).encode()
+            json.dumps([rows, dismissed], default=str, ensure_ascii=False).encode()
         ).hexdigest()
         previous = cache.get(key)
         if previous and previous["revision"] == revision:
@@ -309,18 +324,30 @@ def batch(user, kind, mode="personal"):
         if result.get("unavailable"):
             return result
         items = result["items"]
-        if previous and all(row in rows for row in previous["records"]):
-            owned = {(row[3], str(row[4])) for row in rows}
-            names = {normalize(row[5]) for row in rows}
+        owned = {(row[3], str(row[4])) for row in rows} | {
+            (source, str(media_id)) for source, media_id, _ in dismissed
+        }
+        names = {normalize(row[5]) for row in rows} | {
+            normalize(title) for _, _, title in dismissed
+        }
+        names.discard("")
 
-            def identity(item):
-                return item["source"], str(item["media_id"])
+        def identity(item):
+            return item["source"], str(item["media_id"])
 
-            survivors = [
-                item
-                for item in previous["result"]["items"]
-                if identity(item) not in owned and normalize(item["title"]) not in names
-            ]
+        def eligible(item):
+            aliases = {
+                normalize(item.get(field, "")) for field in ("title", "original_title")
+            }
+            return identity(item) not in owned and not aliases & names
+
+        items = [item for item in items if eligible(item)]
+        if (
+            previous
+            and all(row in rows for row in previous["records"])
+            and all(row in dismissed for row in previous.get("dismissed", []))
+        ):
+            survivors = [item for item in previous["result"]["items"] if eligible(item)]
             kept = {identity(item) for item in survivors}
             titles = {normalize(item["title"]) for item in survivors}
             replacements = iter(
@@ -335,5 +362,14 @@ def batch(user, kind, mode="personal"):
             items = [item for item in items if item is not None]
             items.extend(list(replacements)[: 50 - len(items)])
         result = {**result, "items": items[:50]}
-        cache.set(key, {"revision": revision, "records": rows, "result": result}, 3600)
+        cache.set(
+            key,
+            {
+                "revision": revision,
+                "records": rows,
+                "dismissed": dismissed,
+                "result": result,
+            },
+            3600,
+        )
         return result

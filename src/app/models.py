@@ -227,11 +227,30 @@ class LibraryLink(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     url = models.URLField(max_length=2000, blank=True)
+    position = models.CharField(max_length=120, blank=True)
 
     class Meta:
         """Keep one current link per owner and work."""
 
         constraints = [models.UniqueConstraint(fields=["user", "item"], name="library_link_owner_item")]
+
+
+class LibraryRecommendationDismissal(models.Model):
+    """A recommendation the owner has chosen not to see."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    source = models.CharField(max_length=20)
+    media_type = models.CharField(max_length=20)
+    media_id = models.CharField(max_length=100)
+    title = models.CharField(max_length=500)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "source", "media_type", "media_id"],
+                name="library_dismissal_owner_work",
+            )
+        ]
 
 
 class LibraryImportDraft(models.Model):

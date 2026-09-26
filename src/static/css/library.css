@@ -1148,6 +1148,47 @@ input[type="checkbox"] {
 .header-actions > .btn-subtle-link { background: transparent; border-color: transparent; }
 .header-actions > .btn-subtle-link span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
+.shelf-page .header-actions { flex-wrap: wrap; }
+.shelf-entry { position: relative; min-width: 0; }
+.shelf-select {
+  position: absolute;
+  top: 36px;
+  left: 8px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  cursor: pointer;
+}
+.shelf-select input { width: 19px; height: 19px; margin: 0; accent-color: var(--accent-primary); }
+.shelf-entry.is-selected .cover { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.work-position { margin: 7px 0 0; color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.work-resume { display: inline-block; margin-top: 5px; padding: 4px 0; color: var(--accent-text); font-size: 12px; }
+.bulk-toolbar { margin: 0 0 24px; padding: 16px; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); }
+.bulk-selection, .bulk-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.bulk-selection { margin-bottom: 14px; font-size: 13px; }
+.bulk-selection > span { color: var(--text-muted); }
+.bulk-selection .btn-subtle-link { padding: 4px; }
+.bulk-actions { border: 0; padding: 0; margin: 0; align-items: end; min-width: 0; }
+.bulk-actions label { display: grid; gap: 6px; min-width: 140px; max-width: 100%; color: var(--text-secondary); font-size: 12px; }
+.bulk-actions select { width: 100%; }
+.bulk-feedback, .recommendation-feedback { color: var(--text-secondary); font-size: 13px; margin: 12px 0; overflow-wrap: anywhere; }
+.recommendation-dismiss, .recommendation-undo { width: fit-content; padding: 5px 0; border: 0; background: transparent; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+.recommendation-undo { margin-left: 6px; color: var(--accent-text); }
+.recommendation-dismiss:hover, .recommendation-undo:hover { color: var(--text-primary); text-decoration: underline; }
+.recommendation-dismiss:disabled, .recommendation-undo:disabled { opacity: .5; cursor: wait; }
+.form-grid-fields p:has(input[name="position"]) { grid-column: 1 / -1; }
+
+@media (max-width: 640px) {
+  .bulk-actions label { flex: 1 1 120px; }
+  .bulk-actions > button { width: 100%; }
+  .shelf-page .header-actions { gap: 6px; }
+}
+
 .filter-menu summary {
   display: flex;
   align-items: center;

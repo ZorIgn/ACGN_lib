@@ -4,13 +4,22 @@ from allauth.account import views as accounts
 from django.urls import path
 from django.views.generic import RedirectView
 
-from app import library, library_discovery, library_folders, library_steam
+from app import (
+    library,
+    library_bulk,
+    library_discovery,
+    library_folders,
+    library_steam,
+    library_transfer,
+)
 
 urlpatterns = [
     path(
         "", RedirectView.as_view(pattern_name="library", permanent=False), name="home"
     ),
     path("library/", library.shelf, name="library"),
+    path("library/bulk/", library_bulk.edit, name="library_bulk"),
+    path("library/data/", library_transfer.transfer, name="library_transfer"),
     path("library/add/", library.capture, name="library_capture"),
     path("library/folders/", library_folders.manage, name="library_folders"),
     path(
@@ -22,6 +31,11 @@ urlpatterns = [
         "library/recommendations/choose/",
         library_discovery.choose,
         name="library_recommendation_choose",
+    ),
+    path(
+        "library/recommendations/feedback/",
+        library_discovery.feedback,
+        name="library_recommendation_feedback",
     ),
     path("library/steam/", library_steam.connection, name="library_steam"),
     path("library/source/", library.source, name="library_source"),

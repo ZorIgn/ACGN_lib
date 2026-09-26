@@ -9,6 +9,8 @@
   <title>{% block title %}我的书架{% endblock %} · ACGLib</title>
   <link rel="stylesheet" href="{% static 'css/library.css' %}">
   <script src="{% static 'js/library.js' %}" defer></script>
+  <script src="{% static 'js/library-bulk.js' %}" defer></script>
+  <script src="{% static 'js/library-feedback.js' %}" defer></script>
 </head>
 <body class="{% if not user.is_authenticated %}auth-body{% endif %}" data-user-id="{{ user.pk|default:'' }}">
 <div class="workspace-shell">

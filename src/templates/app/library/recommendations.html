@@ -30,6 +30,7 @@
         <input type="hidden" name="next" value="{{ return_url }}" data-return-field>
         <button type="submit" class="recommendation-action" data-quick-open aria-label="评分并将{{ item.title }}加入书架">评分 / 加入 <span aria-hidden="true">＋</span></button>
       </form>
+      <button type="button" class="recommendation-dismiss" data-recommend-dismiss data-candidate="{{ item.token }}" data-feedback-url="{% url 'library_recommendation_feedback' %}" aria-label="对{{ item.title }}不感兴趣">不感兴趣</button>
     </div>
   </article>
   {% empty %}<p class="recommendation-empty">这批候选已在书架中，或暂时没有可推荐的作品。可以切换类型或直接搜索名称。</p>{% endfor %}
