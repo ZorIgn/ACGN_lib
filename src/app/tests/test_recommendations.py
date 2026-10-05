@@ -274,7 +274,7 @@ class RecommendationViewTests(TestCase):
         )
 
 
-class DiscoveryProviderTests(SimpleTestCase):
+class DiscoveryProviderTests(TestCase):
     def setUp(self):
         cache.clear()
 

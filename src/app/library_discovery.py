@@ -35,7 +35,9 @@ def suggestions(request):
     mode = request.GET.get("mode", "personal")
     if kind not in recommendations.KINDS or mode not in {"personal", "popular"}:
         raise Http404
-    result = recommendations.batch(request.user, kind, mode)
+    result = recommendations.batch(
+        request.user, kind, mode, refresh=request.GET.get("refresh") == "1"
+    )
     page = Paginator(result["items"], 12).get_page(request.GET.get("page"))
     for item in result["items"]:
         candidate = {key: item.get(key, "") for key in CANDIDATE_FIELDS}

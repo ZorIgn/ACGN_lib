@@ -1,12 +1,11 @@
 """Public catalog documents used for discovery and local taste matching."""
 
-import hashlib
 import json
 import re
 
 import requests
-from django.core.cache import cache
 
+from app import library_cache
 from app.providers import bangumi, tmdb, webnovel
 
 
@@ -29,12 +28,7 @@ def public_json(url, *, params=None, payload=None):
 
 def cached(key, load):
     """Share public catalog data without retaining private preference profiles."""
-    key = "discovery:" + hashlib.sha256(key.encode()).hexdigest()
-    value = cache.get(key)
-    if value is None:
-        value = load()
-        cache.set(key, value, 3600)
-    return value
+    return library_cache.get_or_load("discovery:" + key, load)
 
 
 def bgm_document(data):
@@ -114,8 +108,9 @@ def bangumi_catalog(kind, tag=""):
                     },
                 },
             )
-            rows.extend(data.get("data", []))
-            if len(data.get("data", [])) < 20:
+            page = data["data"]
+            rows.extend(page)
+            if len(page) < 20:
                 break
         return [bgm_document(row) for row in rows if bangumi.media_type(row) == kind]
 
@@ -133,19 +128,19 @@ def novel_catalog(author=""):
             )
             rows = [
                 row
-                for row in payload.get("data", {}).get("bookList", [])
+                for row in payload["data"]["bookList"]
                 if row.get("author") == author
             ]
         else:
             payload = public_json(f"{webnovel.BASE_URL}/api/recommend/query")
             rows = []
-            for channel in payload.get("data", {}).values():
+            for channel in payload["data"].values():
                 for chart in channel.values():
                     for index, row in enumerate(chart.get("bookList", [])):
                         rows.append({**row, "chart_position": index + 1})
         return [
             {**novel_document(row), "chart_position": row.get("chart_position")}
-            for row in rows
+            for row in rows[:100]
         ]
 
     return cached(f"webnovel:{author}", load)
@@ -161,7 +156,7 @@ def movie_catalog(kind, seed_id=""):
             data = public_json(
                 f"{tmdb.base_url}/{path}", params={**tmdb.base_params, "page": page}
             )
-            rows.extend(data.get("results", []))
+            rows.extend(data["results"])
             if page >= data.get("total_pages", 1):
                 break
         return [movie_document(row, kind) for row in rows if not row.get("adult")]
@@ -192,7 +187,7 @@ def describe(source, kind, media_id, title):
                 "https://store.steampowered.com/api/appdetails",
                 params={"appids": media_id, "l": "schinese", "cc": "CN"},
             )
-            data = data[str(media_id)].get("data", {})
+            data = data[str(media_id)]["data"]
             return {
                 "source": source,
                 "media_type": kind,

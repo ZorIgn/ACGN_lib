@@ -6,9 +6,13 @@ from django.views.generic import RedirectView
 
 from app import (
     library,
+    library_bangumi,
     library_bulk,
+    library_clip,
     library_discovery,
     library_folders,
+    library_merge,
+    library_series,
     library_steam,
     library_transfer,
 )
@@ -20,6 +24,10 @@ urlpatterns = [
     path("library/", library.shelf, name="library"),
     path("library/bulk/", library_bulk.edit, name="library_bulk"),
     path("library/data/", library_transfer.transfer, name="library_transfer"),
+    path("library/clip/", library_clip.clip, name="library_clip"),
+    path("library/bangumi/", library_bangumi.bangumi_import, name="library_bangumi"),
+    path("library/series/", library_series.manage, name="library_series"),
+    path("library/merge/", library_merge.merge, name="library_merge"),
     path("library/add/", library.capture, name="library_capture"),
     path("library/folders/", library_folders.manage, name="library_folders"),
     path(

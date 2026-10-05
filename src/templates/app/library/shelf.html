@@ -26,6 +26,7 @@
   </div>
 
   <div class="folder-bar">
+    <a class="btn-subtle-link" href="{% url 'library_series' %}">系列与版本</a>
     <nav class="folder-list" aria-label="收藏文件夹">
       <a class="folder-link {% if not folder %}is-active{% endif %}" href="{% querystring folder=None page=None %}" {% if not folder %}aria-current="page"{% endif %}>全部作品</a>
       {% for saved in folders %}

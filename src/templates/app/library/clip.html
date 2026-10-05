@@ -1,0 +1,24 @@
+{% extends "app/library/base.html" %}
+{% block title %}网页快捷收藏{% endblock %}
+{% block content %}
+<div class="capture-page">
+  <div class="workspace-header"><div class="header-main"><h1 class="header-title">网页快捷收藏</h1><p class="header-subtitle">把正在阅读或观看的页面带入书架。</p></div><a class="btn-subtle-link" href="{% url 'library_capture' %}">返回添加作品</a></div>
+  <div class="steam-workspace-grid">
+    <section class="steam-panel-card">
+      <div class="panel-card-header"><h2>确认作品与链接</h2></div>
+      <form method="post" class="steam-form">
+        {% csrf_token %}<div class="steam-fields">{{ form.as_p }}</div>
+        <p class="guide-desc-text">网页标题可能包含章节和网站名称，请调整为作品名。查找后可确认资料来源，或按名称创建。</p>
+        <button type="submit" class="btn-action-primary">查找作品并确认</button>
+      </form>
+    </section>
+    <section class="steam-guide-aside">
+      <h2 class="discovery-title">浏览器书签入口</h2>
+      <p class="guide-desc-text">将下方「加入 ACGLib」拖到电脑浏览器的书签栏。浏览作品页面时，点击这个书签即可带入标题与当前链接。</p>
+      <a class="btn-action-secondary" href="{{ bookmarklet }}" data-bookmarklet>加入 ACGLib</a>
+      <details class="clip-instructions"><summary>手动设置书签</summary><p class="guide-desc-text">新建一个书签，将下面内容完整复制到书签的网址栏。手机浏览器支持编辑书签网址时也可使用。</p><textarea readonly rows="5" aria-label="快捷收藏书签代码">{{ bookmarklet }}</textarea></details>
+      <p class="guide-desc-text">使用时保持 ACGLib 运行。手机需通过电脑的局域网地址打开本页，再保存书签。若网站限制书签脚本，可在左侧直接粘贴标题与链接。</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -52,6 +52,7 @@ class LibraryTransferTests(TestCase):
             "format": transfer.FORMAT,
             "version": transfer.VERSION,
             "folders": ["最爱", "空文件夹"],
+            "series": [],
             "works": works if works is not None else [self.work()],
         }
 
@@ -130,7 +131,7 @@ class LibraryTransferTests(TestCase):
         response = self.client.get(self.url, {"format": "json"})
         self.assertEqual(response.status_code, 200)
         exported = response.json()
-        self.assertEqual(set(exported), {"format", "version", "folders", "works"})
+        self.assertEqual(set(exported), {"format", "version", "folders", "works", "series"})
         self.assertEqual(len(exported["works"]), 6)
         self.assertEqual({work["media_type"] for work in exported["works"]}, set(KINDS))
         self.assertEqual(exported["folders"], ["最爱", "空文件夹"])
@@ -335,7 +336,7 @@ class LibraryTransferTests(TestCase):
                 self.assert_library_empty()
         invalid = [
             {**self.payload(), "version": True},
-            {**self.payload(), "version": 2},
+            {**self.payload(), "version": 99},
             {**self.payload(), "format": "other"},
             {**self.payload(), "credentials": "secret"},
             {**self.payload(), "folders": {}},

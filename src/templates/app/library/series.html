@@ -1,0 +1,30 @@
+{% extends "app/library/base.html" %}
+{% block title %}系列与版本{% endblock %}
+{% block content %}
+<div class="series-page">
+  <div class="workspace-header"><div class="header-main"><h1 class="header-title">系列与版本</h1><p class="header-subtitle">把各部、各卷或不同版本放在一起，每部作品保留独立评分。</p></div><div class="header-actions"><a class="btn-subtle-link" href="{% url 'library_merge' %}">合并重复记录</a><a class="btn-subtle-link" href="{% url 'library' %}">返回书架</a></div></div>
+  {% if error %}<p role="alert" class="filter-feedback">{{ error }}</p>{% endif %}
+  <nav class="folder-list" aria-label="系列与版本"><a class="folder-link {% if not group %}is-active{% endif %}" href="{% url 'library_series' %}{% if chosen_work %}?work={{ chosen_work|urlencode }}{% endif %}">新建关联</a>{% for saved in groups %}<a class="folder-link {% if group.pk == saved.pk %}is-active{% endif %}" href="?group={{ saved.pk }}{% if chosen_work %}&amp;work={{ chosen_work|urlencode }}{% endif %}">{{ saved.name }} <small>{{ saved.get_kind_display }}</small></a>{% endfor %}</nav>
+  <div class="series-layout">
+    <section class="steam-panel-card">
+      <h2 class="discovery-title">{% if group %}{{ group.name }}{% else %}新建系列、分卷或版本组{% endif %}</h2>
+      <form method="post" class="steam-form">{% csrf_token %}{% if group %}<input type="hidden" name="group" value="{{ group.pk }}">{% endif %}<div class="steam-fields">{{ series_form.as_p }}</div><button type="submit" name="action" value="{% if group %}edit{% else %}create{% endif %}" class="btn-action-secondary">{% if group %}保存名称与类型{% else %}创建关联组{% endif %}</button></form>
+      {% if group %}
+      <form method="post" class="series-delete" data-confirm="删除关联组？书架作品和个人记录会保留。">{% csrf_token %}<input type="hidden" name="group" value="{{ group.pk }}"><button name="action" value="delete" class="btn-subtle-link">删除这个关联组</button><p class="guide-desc-text">仅删除这组关系，作品与评分仍在书架中。</p></form>
+      {% endif %}
+    </section>
+    <section>
+      {% if group %}
+      <form method="post" class="steam-panel-card steam-form">{% csrf_token %}<input type="hidden" name="group" value="{{ group.pk }}"><h2 class="discovery-title">添加或调整作品</h2><div class="steam-fields">{{ member_form.as_p }}</div><p class="guide-desc-text">同一作品再次保存会更新说明和排序。序号越小越靠前。</p><button name="action" value="member" class="btn-action-primary">保存作品关联</button></form>
+      <ol class="series-works">
+      {% for entry in members %}<li>
+        <span class="series-order">{{ entry.member.sort_order }}</span>
+        <div class="series-work-text"><a href="{% url 'library_detail' entry.kind entry.record.pk %}?next={{ request.get_full_path|urlencode }}">{{ entry.record.item.title }}</a>{% if entry.member.label %}<p>{{ entry.member.label }}</p>{% endif %}<small>{{ entry.status }} · {% if entry.record.score != None %}{{ entry.record.score|floatformat:'-1' }} / 10{% else %}未评分{% endif %}</small></div>
+        <form method="post">{% csrf_token %}<input type="hidden" name="group" value="{{ group.pk }}"><input type="hidden" name="member" value="{{ entry.member.pk }}"><button class="btn-subtle-link" name="action" value="remove" aria-label="移出 {{ entry.record.item.title }}">移出</button></form>
+      </li>{% empty %}<li class="guide-desc-text">从上方选择书架中的作品，开始整理这组关系。</li>{% endfor %}
+      </ol>
+      {% else %}<p class="guide-desc-text">例如创建「三体」分卷组，或「最终幻想」系列组，再为各部作品填写部次和排序。作品也可以同时加入不同的关联组。</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

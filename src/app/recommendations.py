@@ -11,8 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from django.apps import apps
-from django.core.cache import cache
+from django.db import DatabaseError, close_old_connections, connections
 
+from app import library_cache
 from app.providers import discovery
 
 KINDS = {"book", "manga", "anime", "tv", "movie", "game"}
@@ -89,12 +90,28 @@ def feedback(record):
     return weight
 
 
-def safely(load):
+def safely(load, *, refresh=False, retry=False, stale=None):
     """Isolate a failed public source so other catalog results remain usable."""
+    close_old_connections()
     try:
-        return load()
-    except (requests.RequestException, ValueError, TypeError, KeyError, AttributeError):
+        with library_cache.refresh_context(synchronous=refresh, retry=retry) as state:
+            value = load()
+        if state["stale"] and stale is not None:
+            stale.append(True)
+        return value
+    except (
+        requests.RequestException,
+        DatabaseError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+    ):
+        if stale is not None:
+            stale.append(True)
         return None
+    finally:
+        connections.close_all()
 
 
 def rank(candidates, seeds, owned, *, dismissed=(), personal=True, limit=50):
@@ -204,7 +221,7 @@ def rank(candidates, seeds, owned, *, dismissed=(), personal=True, limit=50):
     return result, meaningful
 
 
-def recommend(user, kind, mode="personal", *, limit=50):
+def recommend(user, kind, mode="personal", *, limit=50, refresh=False, retry=False):
     """Build recommendations from the current owner's records and public pools."""
     records = list(
         apps.get_model("app", kind).objects.filter(user=user).select_related("item")
@@ -233,8 +250,14 @@ def recommend(user, kind, mode="personal", *, limit=50):
     )
     if kind == "book":
         catalog_loaders.append(discovery.novel_catalog)
+    stale = []
     with ThreadPoolExecutor(max_workers=4) as executor:
-        loaded = list(executor.map(safely, [*seed_loaders, *catalog_loaders]))
+        loaded = list(
+            executor.map(
+                lambda load: safely(load, refresh=refresh, retry=retry, stale=stale),
+                [*seed_loaders, *catalog_loaders],
+            )
+        )
     seeds = [
         {
             **document,
@@ -274,7 +297,9 @@ def recommend(user, kind, mode="personal", *, limit=50):
             lambda author=author: discovery.novel_catalog(author) for author in authors
         ]
     with ThreadPoolExecutor(max_workers=3) as executor:
-        for rows in executor.map(safely, extra):
+        for rows in executor.map(
+            lambda load: safely(load, refresh=refresh, retry=retry, stale=stale), extra
+        ):
             if rows:
                 candidates.extend(rows)
     items, personalized = rank(
@@ -292,84 +317,130 @@ def recommend(user, kind, mode="personal", *, limit=50):
         "personalized": personalized,
         "unavailable": not catalogs,
         "partial": any(value is None for value in loaded),
+        "stale": bool(stale),
     }
 
 
-def batch(user, kind, mode="personal"):
-    """Reuse ranked pages until the owner's feedback or the public catalog expires."""
-    key = f"recommendations:{user.pk}:{kind}:{mode}"
+def _state(user, kind):
     fields = ["pk", "score", "status", "item__source", "item__media_id", "item__title"]
     if kind == "game":
         fields.append("progress")
-    with _batch_locks[hash(key) % len(_batch_locks)]:
-        rows = list(
-            apps.get_model("app", kind)
-            .objects.filter(user=user)
-            .order_by("pk")
-            .values_list(*fields)
-        )
-        dismissed = list(
-            apps.get_model("app", "LibraryRecommendationDismissal")
-            .objects.filter(user=user, media_type=kind)
-            .order_by("pk")
-            .values_list("source", "media_id", "title")
-        )
-        revision = hashlib.sha256(
-            json.dumps([rows, dismissed], default=str, ensure_ascii=False).encode()
-        ).hexdigest()
-        previous = cache.get(key)
-        if previous and previous["revision"] == revision:
-            return previous["result"]
-        result = recommend(user, kind, mode, limit=80)
-        if result.get("unavailable"):
-            return result
-        items = result["items"]
-        owned = {(row[3], str(row[4])) for row in rows} | {
-            (source, str(media_id)) for source, media_id, _ in dismissed
+    rows = list(
+        apps.get_model("app", kind)
+        .objects.filter(user=user)
+        .order_by("pk")
+        .values_list(*fields)
+    )
+    dismissed = list(
+        apps.get_model("app", "LibraryRecommendationDismissal")
+        .objects.filter(user=user, media_type=kind)
+        .order_by("pk")
+        .values_list("source", "media_id", "title")
+    )
+    encoded = json.dumps([rows, dismissed], default=str, ensure_ascii=False)
+    rows, dismissed = json.loads(encoded)
+    return rows, dismissed, hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _build(user, kind, mode, state, previous, *, refresh=False, retry=False):
+    rows, dismissed, revision = state
+    result = recommend(user, kind, mode, limit=80, refresh=refresh, retry=retry)
+    if result.get("unavailable"):
+        if not previous:
+            return {"result": result}
+        result = {**previous["result"], "stale": True, "partial": True}
+        candidates = previous.get("candidates", result["items"])
+    else:
+        candidates = result["items"][:80]
+    owned = {(row[3], str(row[4])) for row in rows} | {
+        (source, str(media_id)) for source, media_id, _ in dismissed
+    }
+    names = {normalize(row[5]) for row in rows} | {
+        normalize(title) for _, _, title in dismissed
+    }
+    names.discard("")
+
+    def identity(item):
+        return item["source"], str(item["media_id"])
+
+    def eligible(item):
+        aliases = {
+            normalize(item.get(field, "")) for field in ("title", "original_title")
         }
-        names = {normalize(row[5]) for row in rows} | {
-            normalize(title) for _, _, title in dismissed
-        }
-        names.discard("")
+        return identity(item) not in owned and not aliases & names
 
-        def identity(item):
-            return item["source"], str(item["media_id"])
+    items = [item for item in candidates if eligible(item)]
+    if (
+        previous
+        and previous["revision"] != revision
+        and all(row in rows for row in previous["records"])
+        and all(row in dismissed for row in previous.get("dismissed", []))
+    ):
+        survivors = [item for item in previous["result"]["items"] if eligible(item)]
+        kept = {identity(item) for item in survivors}
+        titles = {normalize(item["title"]) for item in survivors}
+        replacements = iter(
+            item
+            for item in items
+            if identity(item) not in kept and normalize(item["title"]) not in titles
+        )
+        items = [
+            item if identity(item) in kept else next(replacements, None)
+            for item in previous["result"]["items"]
+        ]
+        items = [item for item in items if item is not None]
+        items.extend(list(replacements)[: 50 - len(items)])
+    result = {**result, "items": items[:50]}
+    return {
+        "revision": revision,
+        "records": rows,
+        "dismissed": dismissed,
+        "candidates": candidates,
+        "result": result,
+    }
 
-        def eligible(item):
-            aliases = {
-                normalize(item.get(field, "")) for field in ("title", "original_title")
-            }
-            return identity(item) not in owned and not aliases & names
 
-        items = [item for item in items if eligible(item)]
-        if (
-            previous
-            and all(row in rows for row in previous["records"])
-            and all(row in dismissed for row in previous.get("dismissed", []))
-        ):
-            survivors = [item for item in previous["result"]["items"] if eligible(item)]
-            kept = {identity(item) for item in survivors}
-            titles = {normalize(item["title"]) for item in survivors}
-            replacements = iter(
-                item
-                for item in items
-                if identity(item) not in kept and normalize(item["title"]) not in titles
+def batch(user, kind, mode="personal", *, refresh=False):
+    """Restore ranked pages after restart and refresh expired pools in background."""
+    key = f"recommendations:{kind}:{mode}"
+    lock = _batch_locks[hash((user.pk, key)) % len(_batch_locks)]
+
+    def refresh_snapshot():
+        with lock:
+            snapshot = library_cache.read(key, owner=user)
+            previous = snapshot["payload"] if snapshot else None
+            state = _state(user, kind)
+        payload = _build(user, kind, mode, state, previous, refresh=True, retry=refresh)
+        if payload["result"].get("unavailable") or payload["result"].get("stale"):
+            raise library_cache.Unavailable("Recommendation sources are offline.")
+        with lock:
+            if _state(user, kind)[2] != state[2]:
+                return
+            library_cache.write(key, payload, owner=user)
+
+    with lock:
+        state = _state(user, kind)
+        snapshot = library_cache.read(key, owner=user)
+        previous = snapshot["payload"] if snapshot else None
+        if previous and previous["revision"] == state[2]:
+            result = previous["result"]
+            stale = not library_cache.fresh(snapshot) or result.get("stale", False)
+        else:
+            payload = _build(
+                user, kind, mode, state, previous, refresh=refresh, retry=refresh
             )
-            items = [
-                item if identity(item) in kept else next(replacements, None)
-                for item in previous["result"]["items"]
-            ]
-            items = [item for item in items if item is not None]
-            items.extend(list(replacements)[: 50 - len(items)])
-        result = {**result, "items": items[:50]}
-        cache.set(
-            key,
-            {
-                "revision": revision,
-                "records": rows,
-                "dismissed": dismissed,
-                "result": result,
-            },
-            3600,
-        )
-        return result
+            result = payload["result"]
+            if result.get("unavailable"):
+                return result
+            library_cache.write(key, payload, owner=user)
+            stale = result.get("stale", False)
+        pending = library_cache.refreshing(key, owner=user)
+        if stale or refresh:
+            pending = library_cache.schedule(
+                key, refresh_snapshot, owner=user, retry=refresh
+            )
+        return {
+            **result,
+            "stale": stale,
+            "refreshing": pending,
+        }

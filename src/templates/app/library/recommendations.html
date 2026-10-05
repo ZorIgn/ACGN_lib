@@ -1,3 +1,4 @@
+<div data-recommend-cache data-refreshing="{{ refreshing|yesno:'true,false' }}" data-stale="{{ stale|yesno:'true,false' }}">
 {% if unavailable %}
 <p class="recommendation-empty" data-recommend-unavailable>暂时无法获取推荐资料，稍后可重试。你仍可搜索和添加作品。</p>
 {% else %}
@@ -6,6 +7,7 @@
   {% elif personalized %}结合你的收藏、评分与公开热度，为你挑选这些{{ kind_label }}。
   {% else %}这个类型的偏好资料还不够，先看看热门{{ kind_label }}；收藏和评分后会更贴近你的口味。{% endif %}
   {% if partial %}部分资料源暂时不可用，当前展示已获取的结果。{% endif %}
+  {% if refreshing %}正在更新，先展示已保存的推荐。{% elif stale %}当前展示已保存的推荐，联网后会再次更新。{% endif %}
 </p>
 {% if items %}
 <nav class="recommendation-pagination" data-recommend-current="{{ recommend_page.number }}" aria-label="推荐分页">
@@ -36,3 +38,4 @@
   {% empty %}<p class="recommendation-empty">这批候选已在书架中，或暂时没有可推荐的作品。可以切换类型或直接搜索名称。</p>{% endfor %}
 </div>
 {% endif %}
+</div>

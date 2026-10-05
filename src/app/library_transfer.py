@@ -18,12 +18,19 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
 from app.library import KINDS, STATES, model_for
-from app.models import Item, LibraryFolder, LibraryLink, Sources
+from app.models import (
+    Item,
+    LibraryFolder,
+    LibraryLink,
+    LibrarySeries,
+    LibrarySeriesMember,
+    Sources,
+)
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
 SESSION_KEY = "library_transfer_preview"
 FORMAT = "acglib-library"
-VERSION = 1
+VERSION = 2
 WORK_FIELDS = {
     "source",
     "media_type",
@@ -87,6 +94,29 @@ def export_payload(user):
         "version": VERSION,
         "folders": sorted(folder.name for folder in folders),
         "works": [works[key] for key in sorted(works)],
+        "series": [
+            {
+                "name": group.name,
+                "kind": group.kind,
+                "members": [
+                    {
+                        "source": member.item.source,
+                        "media_type": member.item.media_type,
+                        "media_id": member.item.media_id,
+                        "label": member.label,
+                        "sort_order": member.sort_order,
+                    }
+                    for member in group.members.select_related("item")
+                    if (
+                        member.item.source,
+                        member.item.media_type,
+                        member.item.media_id,
+                    )
+                    in works
+                ],
+            }
+            for group in LibrarySeries.objects.filter(user=user)
+        ],
     }
 
 
@@ -150,9 +180,15 @@ def validate_payload(payload):
     """Validate every entry before returning a normalized, JSON-safe payload."""
     if not isinstance(payload, dict) or payload.get("format") != FORMAT:
         raise ValidationError("不支持此文件格式，请选择 ACGLib 导出的 JSON 文件。")
-    if type(payload.get("version")) is not int or payload["version"] != VERSION:
-        raise ValidationError("不支持此备份版本，请使用版本 1 的 ACGLib JSON 文件。")
-    if set(payload) != {"format", "version", "folders", "works"}:
+    if type(payload.get("version")) is not int or payload["version"] not in {
+        1,
+        VERSION,
+    }:
+        raise ValidationError("不支持此备份格式版本，请使用 ACGLib 导出的 JSON 文件。")
+    fields = {"format", "version", "folders", "works"}
+    if payload["version"] == VERSION:
+        fields.add("series")
+    if set(payload) != fields:
         raise ValidationError("JSON 文件字段不完整或包含未知字段。")
     folders = _names(payload["folders"], "文件夹名称")
     if not isinstance(payload["works"], list):
@@ -197,7 +233,58 @@ def validate_payload(payload):
             works.append(work)
         except ValidationError as error:
             raise ValidationError(f"第 {index} 件作品：{error.messages[0]}") from error
-    return {"format": FORMAT, "version": VERSION, "folders": folders, "works": works}
+    series = payload.get("series", [])
+    if not isinstance(series, list):
+        raise ValidationError("系列与版本数据必须是列表。")
+    identities = {_identity(work) for work in works}
+    names = set()
+    normalized = []
+    for group in series:
+        if not isinstance(group, dict) or set(group) != {"name", "kind", "members"}:
+            raise ValidationError("系列与版本数据字段无效。")
+        name = _text(group["name"], "关联组名称", 80, required=True)
+        if (
+            name in names
+            or not isinstance(group["kind"], str)
+            or group["kind"] not in dict(LibrarySeries.KINDS)
+        ):
+            raise ValidationError("关联组名称重复或关联类型无效。")
+        names.add(name)
+        if not isinstance(group["members"], list):
+            raise ValidationError("关联作品必须是列表。")
+        members = []
+        seen = set()
+        for member in group["members"]:
+            if not isinstance(member, dict) or set(member) != {
+                "source",
+                "media_type",
+                "media_id",
+                "label",
+                "sort_order",
+            }:
+                raise ValidationError("关联作品字段无效。")
+            if not all(
+                isinstance(member[key], str)
+                for key in ("source", "media_type", "media_id")
+            ):
+                raise ValidationError("关联作品标识无效。")
+            identity = _identity(member)
+            if identity not in identities or identity in seen:
+                raise ValidationError("关联作品重复或不在导入清单中。")
+            seen.add(identity)
+            label = _text(member["label"], "部次 / 版本说明", 80)
+            order = member["sort_order"]
+            if type(order) is not int or not 0 <= order <= 1000000:
+                raise ValidationError("关联排序必须为 0–1000000 的整数。")
+            members.append({**member, "label": label})
+        normalized.append({"name": name, "kind": group["kind"], "members": members})
+    return {
+        "format": FORMAT,
+        "version": VERSION,
+        "folders": folders,
+        "works": works,
+        "series": normalized,
+    }
 
 
 def _json_object(pairs):
@@ -257,6 +344,7 @@ def _preview(user, payload):
         "existing": len(unique & existing),
         "duplicates": len(payload["works"]) - len(unique),
         "new_folders": len(set(payload["folders"]) - current_folders),
+        "series_count": len(payload.get("series", [])),
     }
 
 
@@ -270,6 +358,7 @@ def import_payload(user, payload):
         for name in payload["folders"]
     }
     created = 0
+    added = {}
     for work in payload["works"]:
         key = _identity(work)
         if key in existing:
@@ -305,7 +394,23 @@ def import_payload(user, payload):
         for name in work["folders"]:
             folders[name].items.add(item)
         existing.add(key)
+        added[key] = item
         created += 1
+    for entry in payload.get("series", []):
+        group, _ = LibrarySeries.objects.get_or_create(
+            user=user, name=entry["name"], defaults={"kind": entry["kind"]}
+        )
+        for member in entry["members"]:
+            item = added.get(_identity(member))
+            if item is not None:
+                LibrarySeriesMember.objects.get_or_create(
+                    series=group,
+                    item=item,
+                    defaults={
+                        "label": member["label"],
+                        "sort_order": member["sort_order"],
+                    },
+                )
     return created
 
 

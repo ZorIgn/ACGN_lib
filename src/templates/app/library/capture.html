@@ -11,6 +11,7 @@
       </div>
       <p class="header-subtitle">{% if draft %}{{ draft.title }} · 修改自动保存，全部页面一起导入。{% else %}搜索名称获取资料与封面，可多选并分别记录。{% endif %}</p>
     </div>
+    {% if not draft %}<div class="header-actions"><a class="btn-subtle-link" href="{% url 'library_clip' %}">网页快捷收藏</a><a class="btn-subtle-link" href="{% url 'library_bangumi' %}">导入 Bangumi</a></div>{% endif %}
     {% if rows %}
     <div class="header-actions">
       <a href="{{ return_url }}" class="btn-subtle-link">

@@ -253,6 +253,44 @@ class LibraryRecommendationDismissal(models.Model):
         ]
 
 
+class LibraryCacheEntry(models.Model):
+    """A successful local snapshot of public metadata or private recommendations."""
+
+    key = models.CharField(max_length=200, unique=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    payload = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class LibrarySeries(models.Model):
+    """An owner's ordered series, volumes, or alternate editions."""
+
+    KINDS = [("series", "系列"), ("volume", "分卷"), ("edition", "版本")]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    name = models.CharField(max_length=80)
+    kind = models.CharField(max_length=10, choices=KINDS, default="series")
+
+    class Meta:
+        ordering = ["name", "pk"]
+        constraints = [models.UniqueConstraint(fields=["user", "name"], name="library_series_owner_name")]
+
+    def __str__(self):
+        return self.name
+
+
+class LibrarySeriesMember(models.Model):
+    """An independently rated work's place within a personal collection."""
+
+    series = models.ForeignKey(LibrarySeries, on_delete=models.CASCADE, related_name="members")
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="series_memberships")
+    label = models.CharField(max_length=80, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "pk"]
+        constraints = [models.UniqueConstraint(fields=["series", "item"], name="library_series_item")]
+
+
 class LibraryImportDraft(models.Model):
     """An owner's reusable list and unsubmitted per-work edits."""
 

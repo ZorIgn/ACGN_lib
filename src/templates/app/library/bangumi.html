@@ -1,0 +1,68 @@
+{% extends "app/library/base.html" %}
+
+{% block title %}Bangumi 导入{% endblock %}
+
+{% block content %}
+<div class="steam-page">
+  <div class="workspace-header">
+    <div class="header-main">
+      <div class="header-title-row"><h1 class="header-title">Bangumi 导入</h1></div>
+      <p class="header-subtitle">将公开收藏、评分、感想与阅读 / 观看进度带入书架。</p>
+    </div>
+    <a class="subtle-link" href="{% url 'library_transfer' %}">作品数据</a>
+  </div>
+
+  {% if error %}<div class="message-toast message-error" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="steam-workspace-grid">
+    <section class="steam-panel-card" aria-labelledby="bangumi-account-title">
+      <div class="panel-card-header"><h2 id="bangumi-account-title">读取公开收藏</h2></div>
+      <form class="steam-form" method="post" data-busy="正在读取收藏…">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="preview">
+        <div class="steam-fields">{{ form.as_p }}</div>
+        <p class="guide-desc-text">填写 Bangumi 个人主页地址中 /user/ 后的内容。资料较多时读取需要一些时间；读取完成后会显示预览。</p>
+        <div class="steam-actions"><button class="btn-action-primary" type="submit">获取收藏并预览</button></div>
+      </form>
+    </section>
+    <aside class="steam-guide-aside">
+      <div class="panel-card-header"><h2>导入规则</h2></div>
+      <div class="guide-body">
+        <ul class="guide-steps">
+          <li>支持小说、漫画、动画、游戏与三次元收藏（三次元归入剧集）。音乐及资料不可访问的条目会计入跳过数量。</li>
+          <li>读取公开收藏即可，无需密码或访问令牌；私有收藏不在本次读取范围内。</li>
+          <li>评分 0 在 Bangumi 中表示未评分；进度以已读卷 / 章 / 话数或已看集数保存。</li>
+          <li>已有同来源作品保留当前记录。每次都先预览，再由你确认导入；预览在 30 分钟内有效。</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  {% if preview %}
+  <section class="steam-panel-card sync-result-box" aria-labelledby="bangumi-preview-title">
+    <div class="panel-card-header"><h2 id="bangumi-preview-title">{{ username }} 的导入预览</h2></div>
+    <div class="guide-body">
+      <p class="guide-desc-text">共 {{ preview.total }} 条作品记录：新增 {{ preview.new }} 件，已存在 {{ preview.existing }} 件，重复 {{ preview.duplicates }} 条；跳过 {{ skipped }} 条音乐或不可访问的收藏。</p>
+      {% if works %}
+      <details>
+        <summary>查看待导入作品与记录</summary>
+        <ul class="guide-steps">
+          {% for work in works %}
+          <li><strong>{{ work.title }}</strong> · {{ work.kind_label }} · {{ work.status_label }} · {% if work.score is not None %}{{ work.score }} 分{% else %}未评分{% endif %}{% if work.position %} · {{ work.position }}{% endif %}{% if work.notes %}<p>{{ work.notes|linebreaksbr }}</p>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+      {% if preview.new %}
+      <form class="steam-actions" method="post" data-busy="正在导入…">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm">
+        <input type="hidden" name="token" value="{{ token }}">
+        <button class="btn-action-primary" type="submit">确认导入 {{ preview.new }} 件作品</button>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

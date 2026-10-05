@@ -7,6 +7,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urlsplit
 
+import requests
 from django import forms
 from django.apps import apps
 from django.conf import settings
@@ -20,6 +21,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
 from app.models import Item, LibraryFolder, LibraryImportDraft, LibraryLink, Sources
+from app import library_cache
 from app.providers import bangumi, services, steam, webnovel
 
 KINDS = {
@@ -167,7 +169,7 @@ def model_for(kind):
 
 
 def return_url(value, fallback="/library/add/"):
-    """Restrict return navigation to the two library entry pages."""
+    """Restrict return navigation to local library entry pages."""
     value = str(value or "")
     if len(value) > 2000 or "\\" in value or any(ord(char) < 32 for char in value):
         return fallback
@@ -175,7 +177,12 @@ def return_url(value, fallback="/library/add/"):
         parts = urlsplit(value)
     except ValueError:
         return fallback
-    if parts.scheme or parts.netloc or parts.path not in {"/library/", "/library/add/"}:
+    if (
+        parts.scheme
+        or parts.netloc
+        or parts.path
+        not in {"/library/", "/library/add/", "/library/series/", "/library/clip/"}
+    ):
         return fallback
     return value
 
@@ -697,10 +704,13 @@ def detail(request, kind, record_id):
         return redirect(destination)
     metadata = {}
     try:
-        metadata = services.get_media_metadata(
-            kind, record.item.media_id, record.item.source
+        metadata = library_cache.get_or_load(
+            f"detail:{record.item.source}:{kind}:{record.item.media_id}",
+            lambda: services.get_media_metadata(
+                kind, record.item.media_id, record.item.source
+            ),
         )
-    except services.ProviderAPIError:
+    except (services.ProviderAPIError, requests.RequestException):
         messages.info(request, "作品资料暂时无法刷新，你的记录仍可编辑。")
     return render(
         request,
@@ -714,6 +724,9 @@ def detail(request, kind, record_id):
             playtime_hours=record.progress / 60 if kind == "game" else None,
             viewing_link=viewing_url,
             return_url=destination,
+            series_memberships=record.item.series_memberships.filter(
+                series__user=request.user
+            ).select_related("series"),
         ),
     )
 

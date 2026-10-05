@@ -290,6 +290,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickFeedback = dialog.querySelector('[data-quick-feedback]');
     let quickCard;
     let adding = false;
+    let refreshTimer;
+    let refreshAttempts = 0;
+    let refreshKey = batchKey();
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer);
+      if (results.querySelector('[data-refreshing="true"]') && refreshAttempts < 15 && !document.hidden && !dialog.open) {
+        refreshTimer = setTimeout(() => {
+          if (document.hidden || dialog.open) return;
+          refreshAttempts += 1;
+          loadRecommendations(false, true);
+        }, 2000);
+      }
+    };
     const updateTabs = () => discovery.querySelectorAll('[data-recommend-mode]').forEach(tab => {
       const active = tab.dataset.recommendMode === mode;
       tab.classList.toggle('is-active', active);
@@ -324,13 +337,18 @@ document.addEventListener('DOMContentLoaded', () => {
       renderPage();
       initCovers(results);
       results.querySelectorAll('img').forEach(img => { img.loading = 'eager'; });
-      retry.hidden = !results.querySelector('[data-recommend-unavailable]');
+      const state = results.querySelector('[data-recommend-cache]');
+      retry.hidden = !(results.querySelector('[data-recommend-unavailable]') || state?.dataset.stale === 'true' && state.dataset.refreshing !== 'true' || state?.dataset.refreshing === 'true' && refreshAttempts >= 15);
+      if (state?.dataset.refreshing !== 'true') refreshAttempts = 0;
+      scheduleRefresh();
     };
-    const loadRecommendations = async (push = false, refresh = false) => {
+    const loadRecommendations = async (push = false, refresh = false, force = false) => {
+      clearTimeout(refreshTimer);
       controller?.abort();
       const request = new AbortController();
       controller = request;
       const key = batchKey();
+      if (key !== refreshKey || force) { refreshKey = key; refreshAttempts = 0; }
       updateTabs();
       updateLocation(push);
       if (!refresh && batches.has(key)) {
@@ -345,6 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
       url.searchParams.set('type', kind.value);
       url.searchParams.set('mode', mode);
       url.searchParams.set('page', pageNumber);
+      if (force) url.searchParams.set('refresh', '1');
       try {
         const response = await fetch(url, { signal: request.signal });
         if (!response.ok || response.redirected) throw new Error('Recommendations unavailable');
@@ -427,7 +446,10 @@ document.addEventListener('DOMContentLoaded', () => {
       pageNumber = Number(params.get('recommend_page')) || 1;
       loadRecommendations();
     });
-    retry.addEventListener('click', () => loadRecommendations(false, true));
+    retry.addEventListener('click', () => loadRecommendations(false, true, true));
+    window.addEventListener('online', () => loadRecommendations(false, true, true));
+    document.addEventListener('visibilitychange', scheduleRefresh);
+    dialog.addEventListener('close', scheduleRefresh);
     discovery.addEventListener('library:recommendations-changed', () => {
       batches.clear();
       loadRecommendations(false, true);

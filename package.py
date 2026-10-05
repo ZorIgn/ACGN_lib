@@ -91,6 +91,7 @@ def main():
         "README.md",
         "docs/implementation.md",
         "docs/roadmap.md",
+        "docs/platform-imports.md",
         "LICENSE",
         "pyproject.toml",
         "uv.lock",

@@ -7,9 +7,11 @@
   <div class="workspace-header">
     <div class="header-main">
       <div class="header-title-row"><h1 class="header-title">作品数据</h1></div>
-      <p class="header-subtitle">备份与迁移书架中的作品、个人记录、观看位置和收藏文件夹。</p>
+      <p class="header-subtitle">备份与迁移作品、个人记录、文件夹和系列关联。</p>
     </div>
   </div>
+
+  <p class="guide-desc-text">已有平台收藏？<a href="{% url 'library_bangumi' %}">从 Bangumi 导入 →</a></p>
 
   {% if error %}<div class="message-toast message-error" role="alert">{{ error }}</div>{% endif %}
 
@@ -38,7 +40,7 @@
       {% if preview %}
       <div class="sync-result-box" aria-live="polite">
         <div class="result-title-row"><strong>导入预览</strong></div>
-        <p class="result-msg">共 {{ preview.total }} 条作品记录：新增 {{ preview.new }} 件，已存在 {{ preview.existing }} 件，文件内重复 {{ preview.duplicates }} 条。新增 {{ preview.new_folders }} 个文件夹。</p>
+        <p class="result-msg">共 {{ preview.total }} 条作品记录：新增 {{ preview.new }} 件，已存在 {{ preview.existing }} 件，文件内重复 {{ preview.duplicates }} 条。新增 {{ preview.new_folders }} 个文件夹，包含 {{ preview.series_count }} 组系列 / 版本关联。</p>
         <form method="post" class="steam-actions">
           {% csrf_token %}
           <input type="hidden" name="token" value="{{ token }}">

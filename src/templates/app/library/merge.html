@@ -1,0 +1,26 @@
+{% extends "app/library/base.html" %}
+{% block title %}合并重复记录{% endblock %}
+{% block content %}
+<div class="steam-page merge-page">
+  <div class="workspace-header"><div class="header-main"><h1 class="header-title">合并重复记录</h1><p class="header-subtitle">选择同类型的两条记录，预览个人数据与分类，再确认合并。</p></div><div class="header-actions"><a class="btn-subtle-link" href="{% url 'library_series' %}">系列与版本</a><a class="btn-subtle-link" href="{% url 'library' %}">返回书架</a></div></div>
+  {% if error %}<p class="message-toast message-error" role="alert">{{ error }}</p>{% endif %}
+  <section class="steam-panel-card">
+    <form method="post" class="steam-form">{% csrf_token %}<div class="steam-fields">{{ form.as_p }}</div><p class="guide-desc-text">保留记录决定作品名称与资料来源。笔记去重合并，文件夹与系列归属合并；同一关联组的部次和顺序以保留记录为准。</p><button name="action" value="preview" class="btn-action-secondary">预览合并</button></form>
+  </section>
+  {% if preview %}
+  <section class="steam-panel-card" aria-labelledby="merge-preview-title">
+    <div class="panel-card-header"><h2 id="merge-preview-title">合并预览</h2></div>
+    <div class="guide-body">
+      <p>保留 <strong>{{ preview.target.item.title }}</strong>（{{ preview.target.item.source }} · #{{ preview.target.pk }}），合入 <strong>{{ preview.source.item.title }}</strong>（{{ preview.source.item.source }} · #{{ preview.source.pk }}）。</p>
+      <div class="merge-preview-table"><table><thead><tr><th scope="col">个人数据</th><th scope="col">保留记录</th><th scope="col">待合并记录</th><th scope="col">合并结果</th></tr></thead><tbody>{% for field in preview.comparison %}<tr><th scope="row">{{ field.label }}</th><td>{{ field.target }}</td><td>{{ field.source }}</td><td>{{ field.result }}</td></tr>{% endfor %}</tbody></table></div>
+      <h3>我的笔记</h3><p class="merge-notes">{{ preview.result.notes|default:'未设置' }}</p>
+      {% if preview.result.progress != None %}<p>进度：{{ preview.result.progress }}{% if preview.target.item.media_type == 'game' %} 分钟{% endif %}</p><p>开始：{{ preview.result.start_date|date:'Y-m-d H:i'|default:'未设置' }} · 结束：{{ preview.result.end_date|date:'Y-m-d H:i'|default:'未设置' }} · 最近进度：{{ preview.result.progressed_at|date:'Y-m-d H:i'|default:'未设置' }}</p>{% endif %}
+      <h3>文件夹</h3><p>{% for folder in preview.folders %}{{ folder.name }}{% if not forloop.last %}、{% endif %}{% empty %}未分类{% endfor %}</p>
+      <h3>系列与版本</h3><ul>{% for group in preview.series %}<li>{{ group.name }} · {{ group.label|default:'未填写部次' }} · 序号 {{ group.sort_order }}{% if group.conflict %}（两条记录均在此组，采用保留记录的说明与顺序）{% endif %}</li>{% empty %}<li>未关联</li>{% endfor %}</ul>
+      <p class="guide-desc-text">确认后，待合并记录归入保留记录，原有编辑历史随之保留。其他用户的作品记录不受影响。</p>
+      <form method="post" class="steam-actions">{% csrf_token %}<input type="hidden" name="token" value="{{ token }}"><button name="action" value="confirm" class="btn-action-primary">确认合并这两条记录</button></form>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
