@@ -78,6 +78,8 @@ def secret(key, default=undefined, **kwargs):
 SECRET_KEY = installation_secret(
     config("SECRET", default=secret("SECRET_FILE", default="")),
     Path(config("SECRET_PATH", default=str(BASE_DIR / "db" / ".app-secret"))),
+    existing_database=BASE_DIR / "db" / "db.sqlite3",
+    external_database=bool(config("DB_HOST", default="")),
 )
 
 

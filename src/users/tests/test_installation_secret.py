@@ -40,3 +40,23 @@ class InstallationSecretTest(SimpleTestCase):
                 ):
                     installation_secret(value, path)
                 self.assertFalse(path.exists())
+
+    def test_missing_key_for_existing_database_does_not_rotate(self):
+        """An old database without its key requires explicit restoration/migration."""
+        with tempfile.TemporaryDirectory() as directory:
+            key = Path(directory) / ".app-secret"
+            database = Path(directory) / "db.sqlite3"
+            database.write_bytes(b"existing database")
+            with self.assertRaisesMessage(
+                ImproperlyConfigured, "Restore the previous key"
+            ):
+                installation_secret(None, key, existing_database=database)
+            self.assertFalse(key.exists())
+            with self.assertRaisesMessage(ImproperlyConfigured, "external database"):
+                installation_secret(None, key, external_database=True)
+            self.assertFalse(key.exists())
+            key.write_text("existing-private-key-which-must-survive")
+            self.assertEqual(
+                installation_secret(None, key, existing_database=database),
+                "existing-private-key-which-must-survive",
+            )

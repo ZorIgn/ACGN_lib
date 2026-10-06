@@ -3,7 +3,6 @@
 import argparse
 import importlib
 import os
-import secrets
 import sys
 import threading
 from pathlib import Path
@@ -17,13 +16,20 @@ def main():
     parser = argparse.ArgumentParser(description="私人作品书架")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.native_settings")
     env_file = root / ".env"
     if not env_file.exists():
+        from config.persistent_secret import installation_secret  # noqa: PLC0415
+
+        installation_key = installation_secret(
+            None,
+            root / "src/db/.app-secret",
+            existing_database=root / "src/db/db.sqlite3",
+        )
         env_file.write_text(
-            f"SECRET={secrets.token_urlsafe(48)}\nTZ=Asia/Hong_Kong\nTMDB_LANG=zh-CN\n",
+            f"SECRET={installation_key}\nTZ=Asia/Hong_Kong\nTMDB_LANG=zh-CN\n",
             encoding="utf-8",
         )
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.native_settings")
 
     import django
 

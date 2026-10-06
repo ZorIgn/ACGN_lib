@@ -16,7 +16,13 @@ PLACEHOLDERS = {
 }
 
 
-def installation_secret(configured: str | None, path: Path) -> str:
+def installation_secret(
+    configured: str | None,
+    path: Path,
+    *,
+    existing_database: Path | None = None,
+    external_database: bool = False,
+) -> str:
     """Keep explicit keys; atomically publish a private, persistent fallback."""
     if configured:
         if configured in PLACEHOLDERS:
@@ -28,6 +34,17 @@ def installation_secret(configured: str | None, path: Path) -> str:
         return configured
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
+        if external_database or (
+            existing_database is not None
+            and existing_database.exists()
+            and existing_database.stat().st_size > 0
+        ):
+            message = (
+                "SECRET is missing for an existing or external database. Restore the "
+                "previous key and migrate encrypted credentials "
+                "before generating a replacement."
+            )
+            raise ImproperlyConfigured(message)
         fd, temporary = tempfile.mkstemp(prefix=".secret-", dir=path.parent)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
