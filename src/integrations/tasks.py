@@ -7,6 +7,7 @@ import events
 from app.mixins import disable_fetch_releases
 from app.models import MediaTypes
 from app.templatetags import app_tags
+from integrations.contracts import ERROR_TITLE
 from integrations.imports import (
     anilist,
     goodreads,
@@ -22,7 +23,6 @@ from integrations.imports import (
 )
 
 logger = logging.getLogger(__name__)
-ERROR_TITLE = "\n\n\n Couldn't import the following media: \n\n"
 
 
 def format_media_type_display(count, media_type):

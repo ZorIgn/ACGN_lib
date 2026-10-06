@@ -14,3 +14,9 @@ CLAUDE.md
 requests.http
 TODO.txt
 .codex
+
+**/.app-secret
+**/.secret-*
+**/*.sqlite*
+**/.env.*
+!**/.env.example

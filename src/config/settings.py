@@ -20,6 +20,8 @@ from decouple import (
 from django.core.cache import CacheKeyWarning
 from django.core.exceptions import ImproperlyConfigured
 
+from config.persistent_secret import installation_secret
+
 BASE_URL = config("BASE_URL", default=None)
 if BASE_URL:
     FORCE_SCRIPT_NAME = BASE_URL
@@ -73,9 +75,9 @@ def secret(key, default=undefined, **kwargs):
 # See https://docs.djangoproject.com/en/stable/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config(
-    "SECRET",
-    default=secret("SECRET_FILE", default="ifx7bdUWo5EwC2NQNihjRjOrW00Cdv5Y"),
+SECRET_KEY = installation_secret(
+    config("SECRET", default=secret("SECRET_FILE", default="")),
+    Path(config("SECRET_PATH", default=str(BASE_DIR / "db" / ".app-secret"))),
 )
 
 

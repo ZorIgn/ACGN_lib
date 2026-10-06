@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
+from integrations.contracts import ERROR_TITLE
 from users import helpers
 
 
@@ -53,12 +54,11 @@ class HelpersTest(TestCase):
         """Test processing a successful task with errors."""
         task = Mock()
         task.status = "SUCCESS"
-        error_title = "ERRORS:\n"  # Assuming this is ERROR_TITLE
+        error_title = ERROR_TITLE
         task.result = json.dumps(f"Summary text{error_title}Error details")
         task.traceback = None
 
-        with patch("integrations.tasks.ERROR_TITLE", "ERRORS:\n"):
-            processed_task = helpers.process_task_result(task)
+        processed_task = helpers.process_task_result(task)
 
         self.assertEqual(processed_task.summary, "Summary text")
         self.assertEqual(processed_task.errors, "Error details")

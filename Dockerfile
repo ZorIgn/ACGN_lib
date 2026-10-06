@@ -54,7 +54,7 @@ COPY --from=builder /yamtrack/.venv /yamtrack/.venv
 
 # Django app
 COPY src ./
-RUN python manage.py collectstatic --noinput
+RUN SECRET=build-only-collectstatic-key-not-used-at-runtime python manage.py collectstatic --noinput
 
 EXPOSE 8000
 

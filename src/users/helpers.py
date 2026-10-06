@@ -5,7 +5,7 @@ from datetime import datetime
 import croniter
 from django.utils import timezone
 
-import integrations
+from integrations.contracts import ERROR_TITLE
 
 
 def process_task_result(task):
@@ -24,7 +24,7 @@ def process_task_result(task):
     elif task.status == "SUCCESS":
         result_json = json.loads(task.result)
         # Split by the error indicator
-        parts = result_json.split(integrations.tasks.ERROR_TITLE.strip())
+        parts = result_json.split(ERROR_TITLE.strip())
         if len(parts) > 1:
             # We have both summary and errors
             task.summary = parts[0].strip()

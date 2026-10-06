@@ -1,22 +1,27 @@
 services:
   yamtrack:
     container_name: yamtrack
-    image: ghcr.io/fuzzygrim/yamtrack
+    build: .
+    image: acgn-lib:local
     restart: unless-stopped
     depends_on:
       - db
       - redis
     environment:
+      - DJANGO_SETTINGS_MODULE=config.container_settings
       - TZ=Europe/Berlin
-      - SECRET=longstring
+      # Persist the generated signing/encryption key together with application data.
+      - SECRET_PATH=/yamtrack/db/.app-secret
       - REDIS_URL=redis://redis:6379
       - DB_HOST=db
       - DB_NAME=yamtrack
       - DB_USER=yamtrack
-      - DB_PASSWORD=yamtrack
+      - DB_PASSWORD=${DB_PASSWORD:?Set a PostgreSQL password}
       - DB_PORT=5432
+    volumes:
+      - app_data:/yamtrack/db
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   db:
     image: postgres:16-alpine
@@ -24,7 +29,7 @@ services:
     environment:
       - POSTGRES_DB=yamtrack
       - POSTGRES_USER=yamtrack
-      - POSTGRES_PASSWORD=yamtrack
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?Set a PostgreSQL password}
     volumes:
       - ./db:/var/lib/postgresql/data
     restart: unless-stopped
@@ -38,3 +43,5 @@ services:
 
 volumes:
   redis_data:
+
+  app_data:
